@@ -56,7 +56,8 @@
   "author": "Abdrahman Mussa",
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "openauth": "file:."
   },
   "peerDependencies": {
     "@prisma/client": "^7.10.0",
