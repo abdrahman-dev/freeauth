@@ -74,7 +74,7 @@ Plainly: **openauth does not send email.** There is no mailer inside, no SMTP se
 
 MIT. See `LICENSE`.
 
-Source (once it exists): `https://github.com/TODO/openauth` — no public repo yet; the link above is a placeholder, same as the `repository` field in `package.json`.
+Source: `https://github.com/abdrahman-dev/openauth`.
 
 ---
 

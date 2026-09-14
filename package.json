@@ -3,11 +3,15 @@
   "version": "0.1.0",
   "description": "Drop-in auth library with an adapter interface — OTP email verification, JWT access/refresh sessions with rotation and reuse detection, per-flow lockouts. Bring your own database via openauth/mongoose or openauth/prisma.",
   "license": "MIT",
-  "//": "TODO: replace repository with the real GitHub URL — no public repo exists yet.",
+  "author": "Abdrahman Mussa",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TODO/openauth.git"
+    "url": "git+https://github.com/abdrahman-dev/openauth.git"
   },
+  "bugs": {
+    "url": "https://github.com/abdrahman-dev/openauth/issues"
+  },
+  "homepage": "https://github.com/abdrahman-dev/openauth",
   "type": "module",
   "main": "./dist/core/index.js",
   "module": "./dist/core/index.js",
@@ -49,7 +53,7 @@
     "mongoose",
     "prisma"
   ],
-  "author": "",
+  "author": "Abdrahman Mussa",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.3"
