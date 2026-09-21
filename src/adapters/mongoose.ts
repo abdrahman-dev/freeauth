@@ -1,5 +1,5 @@
 // Mongoose adapter — the first real implementation of the AuthAdapter contract.
-// Source of truth for every shape and method name: doc/openauth-architecture.md
+// Source of truth for every shape and method name: doc/freeauth-architecture.md
 // This is a relocation, not a rewrite: the queries below mirror the legacy
 // repositories/userRepository.js and repositories/sessionRepository.js (since
 // removed) and their models.
@@ -10,13 +10,18 @@ import type { AuthAdapter, SessionAdapter, SessionRecord, UserAdapter, UserRecor
 
 // Maps a Mongoose user document to the contract's UserRecord.
 // Schema fields map 1:1 to the contract's separate verify/reset pairs.
+// provider/providerId fall back to 'local'/null so pre-existing documents
+// written before those fields existed still satisfy the contract.
 const toUserRecord = (doc: any): UserRecord => ({
     id: doc._id.toString(),
     email: doc.email,
     name: doc.name,
-    password: doc.password,
+    password: doc.password ?? null,
 
     isAccountVerified: doc.isAccountVerified ?? false,
+
+    provider: doc.provider ?? 'local',
+    providerId: doc.providerId ?? null,
 
     verifyOTP: doc.verifyOTP ?? null,
     verifyOTPExpire: doc.verifyOTPExpire ?? null,
@@ -55,6 +60,19 @@ const users: UserAdapter = {
             password: data.password,
             verifyOTP: data.verifyOTP,
             verifyOTPExpire: data.verifyOTPExpire,
+        });
+        return toUserRecord(doc);
+    },
+
+    // OAuth-only user: no password (schema default null applies), verified
+    // immediately (Google already verified the email), no OTP fields set.
+    async createOAuthUser(data) {
+        const doc = await userModel.create({
+            name: data.name,
+            email: data.email,
+            provider: data.provider,
+            providerId: data.providerId,
+            isAccountVerified: true,
         });
         return toUserRecord(doc);
     },

@@ -1,5 +1,5 @@
 // Prisma adapter — the second real implementation of the AuthAdapter contract.
-// Source of truth for every shape and method name: doc/openauth-architecture.md
+// Source of truth for every shape and method name: doc/freeauth-architecture.md
 // A faithful structural port of adapters/mongoose.ts onto Prisma's query API —
 // same method list, same semantics, no redesign.
 //
@@ -45,8 +45,10 @@ interface PrismaUserShape {
     id: string;
     email: string;
     name: string;
-    password: string;
+    password: string | null;
     isAccountVerified: boolean;
+    provider: string;
+    providerId: string | null;
     verifyOTP: string | null;
     verifyOTPExpire: bigint | null;
     verifyAttempts: number;
@@ -72,13 +74,18 @@ export function prismaAdapter(prismaClient: PrismaClientLike): AuthAdapter {
     // Maps a Prisma User row to the contract's UserRecord. Field names match the
     // schema (which mirrors Mongoose naming), so the only real translation is
     // BigInt -> number on the OTP expiries; `id` flows through untouched.
+    // provider falls back to 'local' so rows written before the column existed
+    // still satisfy the contract.
     const toUserRecord = (user: PrismaUserShape): UserRecord => ({
         id: user.id,
         email: user.email,
         name: user.name,
-        password: user.password,
+        password: user.password ?? null,
 
         isAccountVerified: user.isAccountVerified ?? false,
+
+        provider: (user.provider as UserRecord['provider']) ?? 'local',
+        providerId: user.providerId ?? null,
 
         verifyOTP: user.verifyOTP ?? null,
         verifyOTPExpire: user.verifyOTPExpire != null ? Number(user.verifyOTPExpire) : null,
@@ -119,6 +126,22 @@ export function prismaAdapter(prismaClient: PrismaClientLike): AuthAdapter {
                     password: data.password,
                     verifyOTP: data.verifyOTP,
                     verifyOTPExpire: data.verifyOTPExpire,
+                },
+            });
+            return toUserRecord(doc);
+        },
+
+        // OAuth-only user: password null, verified immediately (Google already
+        // verified the email), no OTP fields set.
+        async createOAuthUser(data) {
+            const doc = await prismaClient.user.create({
+                data: {
+                    name: data.name,
+                    email: data.email,
+                    password: null,
+                    isAccountVerified: true,
+                    provider: data.provider,
+                    providerId: data.providerId,
                 },
             });
             return toUserRecord(doc);

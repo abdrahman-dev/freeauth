@@ -1,4 +1,4 @@
-// Source of truth for these types: doc/openauth-architecture.md
+// Source of truth for these types: doc/freeauth-architecture.md
 // Every interface and method signature below is defined there. Do not modify this
 // file without updating that document first.
 
@@ -6,9 +6,14 @@ export interface UserRecord {
   id: string; // always a string — adapter must convert ObjectId/number/uuid itself
   email: string;
   name: string;
-  password: string; // hash, never plaintext
+  password: string | null; // hash, never plaintext; null for OAuth-only users who never set one
 
   isAccountVerified: boolean;
+
+  // 'local' for users created via registerUser (the default for all pre-existing
+  // records); 'google'/'github' for users created via createOAuthUser.
+  provider: 'local' | 'google' | 'github';
+  providerId: string | null; // provider's subject id (`sub` for Google, numeric user id for GitHub), null for local users
 
   verifyOTP: string | null; // hash of the OTP, never plaintext
   verifyOTPExpire: number | null; // epoch ms
@@ -39,6 +44,19 @@ export interface UserAdapter {
     password: string; // already hashed by core before calling this
     verifyOTP: string;
     verifyOTPExpire: number;
+  }): Promise<UserRecord>;
+
+  /**
+   * Create an OAuth-only user. Unlike create(), this sets no password (OAuth users
+   * authenticate via their provider, never via a local password) and marks the
+   * account verified immediately — the provider already verified the email, so no
+   * OTP flow is needed. Called only by core's OAuth logins for first-time OAuth users.
+   */
+  createOAuthUser(data: {
+    email: string;
+    name: string;
+    provider: 'google' | 'github';
+    providerId: string;
   }): Promise<UserRecord>;
 
   updatePassword(id: string, hashedPassword: string): Promise<void>;

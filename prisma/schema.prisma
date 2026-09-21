@@ -1,6 +1,6 @@
-// OpenAuth reference Prisma schema — a faithful structural port of the Mongoose
+// FreeAuth reference Prisma schema — a faithful structural port of the Mongoose
 // models (model/userModel.js, model/refreshToken.js) into Prisma schema syntax.
-// Source of truth for the core contract: doc/openauth-architecture.md
+// Source of truth for the core contract: doc/freeauth-architecture.md
 //
 // Prisma 7 conventions: the datasource carries no `url` (connection strings now
 // live in prisma.config.ts / the PrismaClient constructor's adapter), and the new
@@ -19,8 +19,13 @@ model User {
   id                String   @id @default(cuid())
   name              String
   email             String   @unique
-  password          String
+  password          String?
   isAccountVerified Boolean  @default(false)
+
+  // 'local' for password users (default, covers all pre-existing rows);
+  // 'google' for OAuth-only users created via createOAuthUser (no password set).
+  provider          String   @default("local")
+  providerId        String?
 
   verifyOTP         String?
   verifyOTPExpire   BigInt?

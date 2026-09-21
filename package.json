@@ -1,17 +1,17 @@
 {
-  "name": "openauth",
+  "name": "freeauth",
   "version": "0.1.0",
-  "description": "Drop-in auth library with an adapter interface — OTP email verification, JWT access/refresh sessions with rotation and reuse detection, per-flow lockouts. Bring your own database via openauth/mongoose or openauth/prisma.",
+  "description": "Drop-in auth library with an adapter interface — OTP email verification, JWT access/refresh sessions with rotation and reuse detection, per-flow lockouts. Bring your own database via freeauth/mongoose or freeauth/prisma.",
   "license": "MIT",
   "author": "Abdrahman Mussa",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/abdrahman-dev/openauth.git"
+    "url": "git+https://github.com/abdrahman-dev/freeauth.git"
   },
   "bugs": {
-    "url": "https://github.com/abdrahman-dev/openauth/issues"
+    "url": "https://github.com/abdrahman-dev/freeauth/issues"
   },
-  "homepage": "https://github.com/abdrahman-dev/openauth",
+  "homepage": "https://github.com/abdrahman-dev/freeauth",
   "type": "module",
   "main": "./dist/core/index.js",
   "module": "./dist/core/index.js",
@@ -40,7 +40,9 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "postinstall": "prisma generate",
     "start": "node app.js",
     "dev": "nodemon app.js"
@@ -53,11 +55,11 @@
     "mongoose",
     "prisma"
   ],
-  "author": "Abdrahman Mussa",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.3",
-    "openauth": "file:."
+    "freeauth": "file:."
   },
   "peerDependencies": {
     "@prisma/client": "^7.10.0",
@@ -72,18 +74,30 @@
     }
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.4.3",
+    "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.5.1",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^4.1.11",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.1",
     "helmet": "^8.1.0",
+    "mongodb-memory-server": "^11.2.0",
     "mongoose": "^9.4.1",
     "nodemon": "^3.1.14",
+    "pg": "^8.23.0",
     "prisma": "^7.10.0",
+    "supertest": "^7.2.2",
     "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
     "zod": "^4.3.6"
   }
 }

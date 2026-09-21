@@ -1,26 +1,26 @@
-# openauth
+# freeauth
 
-Drop-in authentication for Node backends — OTP email verification, JWT access/refresh sessions with rotation and reuse detection, per-flow lockouts. You bring the database; openauth brings the opinions.
+Drop-in authentication for Node backends — OTP email verification, JWT access/refresh sessions with rotation and reuse detection, per-flow lockouts. You bring the database; freeauth brings the opinions.
 
 ## Install
 
 ```sh
-npm install openauth
+npm install freeauth
 ```
 
 You'll also need whichever database driver your adapter uses (each is an optional peer — install only the one you need):
 
 ```sh
-npm install mongoose        # for openauth/mongoose
-npm install @prisma/client  # for openauth/prisma
+npm install mongoose        # for freeauth/mongoose
+npm install @prisma/client  # for freeauth/prisma
 ```
 
 ## Quick start
 
 ```ts
 import mongoose from 'mongoose';
-import { createAuth } from 'openauth';
-import { mongooseAdapter } from 'openauth/mongoose';
+import { createAuth } from 'freeauth';
+import { mongooseAdapter } from 'freeauth/mongoose';
 
 await mongoose.connect(process.env.MONGODB_URL);
 
@@ -45,8 +45,8 @@ Everything else follows the same shape: `loginUser`, `refreshSession`, `forgotPa
 
 ## Available adapters
 
-- `openauth/mongoose` — MongoDB via Mongoose. Ships with the user/session schemas it needs.
-- `openauth/prisma` — your own Prisma schema and client. Pass your generated client in: `prismaAdapter(prisma)`.
+- `freeauth/mongoose` — MongoDB via Mongoose. Ships with the user/session schemas it needs.
+- `freeauth/prisma` — your own Prisma schema and client. Pass your generated client in: `prismaAdapter(prisma)`.
 
 That's all there is today. If you've written one for something else, contributions are genuinely welcome — the contract it has to satisfy lives in `src/core/types.ts` and is deliberately small.
 
@@ -66,7 +66,7 @@ const auth = createAuth({
 
 ## Email delivery
 
-Plainly: **openauth does not send email.** There is no mailer inside, no SMTP settings, no provider SDK — that is a feature, not a gap.
+Plainly: **freeauth does not send email.** There is no mailer inside, no SMTP settings, no provider SDK — that is a feature, not a gap.
 
 `registerUser`, `forgotPassword`, and `resendOTP` return the raw `otp` value to your code, and delivering it is your application's job: nodemailer, Resend, SendGrid, carrier pigeon — whatever you already use. The core hashes the OTP before storing it and enforces expiry, attempt counting, and lockouts; the last mile to the inbox is yours.
 
@@ -74,7 +74,7 @@ Plainly: **openauth does not send email.** There is no mailer inside, no SMTP se
 
 MIT. See `LICENSE`.
 
-Source: `https://github.com/abdrahman-dev/openauth`.
+Source: `https://github.com/abdrahman-dev/freeauth`.
 
 ---
 
