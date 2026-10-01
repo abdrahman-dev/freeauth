@@ -32,16 +32,29 @@ export const auth = createAuth({
   },
 });
 
-const { accessToken, refreshToken, otp } = await auth.registerUser({
+const { userId, otp } = await auth.registerUser({
   name: 'Ada',
   email: 'ada@example.com',
   password: 'correct horse battery staple',
 });
-// deliver `otp` to the user (see Email delivery below), then:
+// Registration does NOT start a session. Deliver `otp` to the user (see Email
+// delivery below), have them verify, and THEN log in to get tokens:
 await auth.verifyEmail({ email: 'ada@example.com', otp });
+const { accessToken, refreshToken } = await auth.loginUser({
+  email: 'ada@example.com',
+  password: 'correct horse battery staple',
+});
 ```
 
 Everything else follows the same shape: `loginUser`, `refreshSession`, `forgotPassword`, `resetPassword`, `resendOTP`, `changePassword`, `logoutUser`, `getMe`. Failures throw `AppError` with a `statusCode` — handle them however your framework likes.
+
+## Security notes
+
+- **Registration issues no session.** `registerUser` returns `{ userId, otp }` only — not tokens. Email verification is a gate (`loginUser` refuses an unverified account), so handing a working session to an unverified registration would defeat it. The flow is register → verify → login.
+- **Email verification / password-reset OTPs** are rate-limited per account: 5 wrong attempts lock that flow for 15 minutes. This bounds online guessing of the 6-digit OTP, but you should still rate-limit the HTTP layer by IP/identifier — the library cannot see your transport.
+- **Refresh-token rotation + reuse detection.** Each refresh rotates to a brand-new token and revokes the old one; presenting an already-revoked (but unexpired) refresh token is treated as theft and revokes *every* session for that user. A client whose rotation response is lost will therefore have to log in again — this is intentional.
+- **Access tokens are stateless.** `changePassword`, `resetPassword`, and reuse-detection revoke *refresh* tokens immediately, but an already-issued access token stays valid until it expires (default 15 minutes). Keep the access-token TTL short; it is the window in which a pre-change token still works.
+- **Inputs are trusted to be the declared types but checked anyway.** The library validates that fields like `email`/`otp`/`password` are strings before they reach the database layer, so passing an unvalidated object cannot turn into a query-operator injection — but you should still validate and shape input at your edge.
 
 ## Available adapters
 

@@ -12,7 +12,11 @@ export const authMiddleware = (req, res, next) => {
             });
         }
 
-        const decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
+        // Pin the algorithm: accept only HS256 (the algorithm the tokens are signed
+        // with). Without this, jwt.verify accepts any algorithm the key type allows,
+        // which is the footgun behind alg-confusion attacks — defence in depth even
+        // though a symmetric secret is not itself confusable with a public key.
+        const decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET, { algorithms: ['HS256'] });
         req.user = { userId: decoded.userId };
 
         next();

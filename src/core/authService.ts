@@ -21,6 +21,19 @@ export interface AuthSecrets {
     refreshTokenSecret: string;
 }
 
+// The library receives already-parsed inputs from the consuming application and
+// makes no assumption that the consumer validated their types. Guard every string
+// input that flows into an adapter query, so a non-string value (e.g. a MongoDB
+// operator object like { $gt: '' }) can never reach findByEmail and be interpreted
+// as a query operator — i.e. NoSQL operator injection. Returns the value narrowed
+// to `string` so callers can use the result directly.
+const assertString = (value: unknown, field: string): string => {
+    if (typeof value !== 'string') {
+        throw new AppError(`Invalid ${field}`, 400);
+    }
+    return value;
+};
+
 export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets }) {
     const { adapter, secrets } = config;
 
@@ -39,8 +52,14 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
         const attempts = await adapter.users.incrementOtpAttempts(user.id, type);
 
         if (attempts >= MAX_OTP_ATTEMPTS) {
-            await adapter.users.setOtpLock(user.id, type, new Date(Date.now() + OTP_LOCKOUT_MS));
+            // Order matters. resetOtpAttempts clears the counter AND the lock together
+            // (its documented contract — the success path relies on that). So it must
+            // run BEFORE setOtpLock, otherwise it would null the very lock we just set
+            // and the lockout would never engage (checkOtpLock could never see a future
+            // lockUntil). The counter is zeroed so a fresh window of attempts is granted
+            // once the lock expires.
             await adapter.users.resetOtpAttempts(user.id, type);
+            await adapter.users.setOtpLock(user.id, type, new Date(Date.now() + OTP_LOCKOUT_MS));
         }
     };
 
@@ -99,8 +118,29 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
     const rotateSession = async (oldToken: string) => {
         const storedToken = await adapter.sessions.findValid(oldToken);
 
-        if (!storedToken || storedToken.isRevoked) {
+        if (!storedToken) {
             throw new AppError('Invalid or expired refresh token', 401);
+        }
+
+        // A refresh token that is still present (unexpired) but ALREADY revoked being
+        // presented is a reuse attempt. The legitimate client discards a refresh token
+        // the instant it rotates it, so the only party replaying a revoked-but-unexpired
+        // token is an attacker holding a stolen copy (or a client whose rotation response
+        // was lost). Both this case and the revoke()-lost-the-race case below are reuse,
+        // and both must wipe every session for the user.
+        //
+        // Previously the revoked token was rejected with a plain 401 at this point —
+        // BEFORE revoke() could ever report the collision — so the "revoke all sessions
+        // on reuse" defense could only fire on a sub-second concurrency race and never on
+        // real sequential theft. The attacker's rotated session survived indefinitely.
+        const reuseDetected = async (): Promise<never> => {
+            await adapter.sessions.revokeAllForUser(storedToken.userId);
+            logger.warn(`[SECURITY] Refresh token reuse detected for userId: ${storedToken.userId}. All sessions revoked.`);
+            throw new AppError('Session invalidated due to suspicious activity, please login again', 401);
+        };
+
+        if (storedToken.isRevoked) {
+            await reuseDetected();
         }
 
         const user = await adapter.users.findById(storedToken.userId);
@@ -112,11 +152,7 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
         const revoked = await adapter.sessions.revoke(oldToken);
 
         if (!revoked) {
-            await adapter.sessions.revokeAllForUser(storedToken.userId);
-
-            logger.warn(`[SECURITY] Refresh token reuse detected for userId: ${storedToken.userId}. All sessions revoked.`);
-
-            throw new AppError('Session invalidated due to suspicious activity, please login again', 401);
+            await reuseDetected();
         }
 
         const accessToken = generateAccessToken({ id: storedToken.userId }, secrets.accessTokenSecret);
@@ -132,7 +168,9 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
     };
 
     const registerUser = async (data: { name: string; email: string; password: string }) => {
-        const { name, email, password } = data;
+        const name = assertString(data.name, 'name');
+        const email = assertString(data.email, 'email');
+        const password = assertString(data.password, 'password');
 
         const existingUser = await adapter.users.findByEmail(email);
 
@@ -152,20 +190,18 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
             verifyOTPExpire: otpExpire,
         });
 
-        const accessToken = generateAccessToken(user, secrets.accessTokenSecret);
-        const refreshToken = generateRefreshToken(user, secrets.refreshTokenSecret);
-
-        await adapter.sessions.create({
-            userId: user.id,
-            token: refreshToken,
-            expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-        });
-
-        return { accessToken, refreshToken, otp };
+        // Registration deliberately does NOT establish a session. Email verification is
+        // a gate — loginUser refuses an unverified account — and returning working
+        // access/refresh tokens here would hand a full session to an account that has
+        // not proven control of its email address (and may have registered against an
+        // address it does not own), bypassing that gate entirely. The caller delivers
+        // `otp`, the user verifies, and then logs in to obtain tokens.
+        return { userId: user.id, otp };
     };
 
     const loginUser = async (data: { email: string; password: string }) => {
-        const { email, password } = data;
+        const email = assertString(data.email, 'email');
+        const password = assertString(data.password, 'password');
 
         const user = await adapter.users.findByEmail(email);
 
@@ -196,7 +232,8 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
     };
 
     const verifyEmail = async (data: { email: string; otp: string }) => {
-        const { email, otp } = data;
+        const email = assertString(data.email, 'email');
+        const otp = assertString(data.otp, 'otp');
 
         const user = await adapter.users.findByEmail(email);
 
@@ -214,7 +251,7 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
     };
 
     const forgotPassword = async (data: { email: string }) => {
-        const { email } = data;
+        const email = assertString(data.email, 'email');
 
         const user = await adapter.users.findByEmail(email);
 
@@ -231,9 +268,13 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
     };
 
     const resetPassword = async (data: { email: string; otp: string; newPassword?: string; password?: string }) => {
-        const { email, otp } = data;
-        // newPassword going forward, password kept as deprecated alias
-        const password = data.newPassword ?? data.password;
+        const email = assertString(data.email, 'email');
+        const otp = assertString(data.otp, 'otp');
+        // newPassword going forward, password kept as deprecated alias. Validate it is a
+        // present string BEFORE consuming the OTP — otherwise a request carrying a valid
+        // OTP but no new password would burn the user's one-time OTP (and only then fail)
+        // without ever changing the password, needlessly invalidating a good OTP.
+        const password = assertString(data.newPassword ?? data.password, 'newPassword');
 
         const user = await adapter.users.findByEmail(email);
 
@@ -249,7 +290,7 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
     };
 
     const resendOTP = async (data: { email: string }) => {
-        const { email } = data;
+        const email = assertString(data.email, 'email');
 
         const user = await adapter.users.findByEmail(email);
 
@@ -271,7 +312,8 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets 
     };
 
     const changePassword = async (userId: string, data: { currentPassword: string; newPassword: string }) => {
-        const { currentPassword, newPassword } = data;
+        const currentPassword = assertString(data.currentPassword, 'currentPassword');
+        const newPassword = assertString(data.newPassword, 'newPassword');
 
         const user = await adapter.users.findById(userId);
 

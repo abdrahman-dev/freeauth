@@ -28,19 +28,20 @@ export const refreshTokenController = asyncHandler(async (req, res) => {
     });
 });
 
-// Registers a new user, hashes password, and sets auth cookies
+// Registers a new user and issues a verification OTP. Note: registration does NOT
+// start a session — the account must verify its email and then log in.
 export const registerUser = asyncHandler(async (req, res) => {
     const { email } = req.body;
 
-    const { accessToken, refreshToken, otp } = await auth.registerUser(req.body);
+    const { otp } = await auth.registerUser(req.body);
 
-    setAuthCookies(res, accessToken, refreshToken);
-
-    logger.info(`[DEV] Account verification OTP for ${email}: ${otp}`);
+    // Deliver the OTP out-of-band (email). logger.debug only prints in development,
+    // so the plaintext OTP never reaches production logs.
+    logger.debug(`Account verification OTP for ${email}: ${otp}`);
 
     return res.status(201).json({
         success: true,
-        message: "User registered successfully"
+        message: "User registered successfully. Please verify your email."
     });
 });
 
@@ -64,8 +65,9 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     const result = await auth.forgotPassword(req.body);
 
     if (result.sent) {
-        // 3) Send OTP to user's email (simulate by logging to console fo development)
-        logger.info(`[DEV] Password reset OTP for ${email}: ${result.otp}`);
+        // Deliver the OTP out-of-band (email). logger.debug is dev-only, so the
+        // plaintext reset OTP never reaches production logs.
+        logger.debug(`Password reset OTP for ${email}: ${result.otp}`);
     }
 
     return res.status(200).json({
@@ -103,7 +105,8 @@ export const resendOTP = asyncHandler(async (req, res) => {
     const result = await auth.resendOTP(req.body);
 
     if (result.sent) {
-        logger.info(`[DEV] Resend verify OTP for ${email}: ${result.otp}`);
+        // Dev-only log; deliver the OTP out-of-band (email) in real deployments.
+        logger.debug(`Resend verify OTP for ${email}: ${result.otp}`);
     }
 
     return res.status(200).json({
