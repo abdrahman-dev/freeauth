@@ -1,0 +1,28 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Library build must stay green alongside the suite (Express tests run
+      # against src/ via vitest aliases, but the published artifact is dist/).
+      - run: npm run build
+
+      - run: npx tsc --noEmit
+
+      # mongodb-memory-server downloads its mongod binary on first run;
+      # GitHub-hosted runners have the required libraries and network access.
+      - run: npm test
