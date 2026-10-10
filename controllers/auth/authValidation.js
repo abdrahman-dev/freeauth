@@ -68,3 +68,18 @@ export const verifyEmailSchema = z.object({
 export const resendOTPSchema = z.object({
     email: z.string().email("Invalid email format")
 });
+
+export const googleLoginSchema = z.object({
+    idToken: z
+        .string()
+        .min(1, "ID token is required")
+});
+
+export const githubLoginSchema = z.object({
+    code: z
+        .string()
+        .min(1, "Authorization code is required"),
+    state: z
+        .string()
+        .min(1, "State is required")
+});

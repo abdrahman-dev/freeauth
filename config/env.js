@@ -9,9 +9,19 @@ export const envSchema = z.object({
       message: "PORT must be between 1 and 65535",
     }),
 
+  ADAPTER: z.enum(['mongoose', 'prisma'], {
+    message: "ADAPTER must be 'mongoose' or 'prisma'",
+  }),
+
   MONGODB_URL: z
     .string()
-    .min(1, "MONGODB_URL is required"),
+    .min(1, "MONGODB_URL is required")
+    .optional(),
+
+  DATABASE_URL: z
+    .string()
+    .min(1, "DATABASE_URL is required")
+    .optional(),
 
   ACCESS_TOKEN_SECRET: z
     .string()
@@ -20,6 +30,21 @@ export const envSchema = z.object({
   REFRESH_TOKEN_SECRET: z
     .string()
     .min(32, "REFRESH_TOKEN_SECRET must be at least 32 characters"),
+
+  GOOGLE_CLIENT_ID: z
+    .string()
+    .min(1, "GOOGLE_CLIENT_ID must not be empty")
+    .optional(),
+
+  GITHUB_CLIENT_ID: z
+    .string()
+    .min(1, "GITHUB_CLIENT_ID must not be empty")
+    .optional(),
+
+  GITHUB_CLIENT_SECRET: z
+    .string()
+    .min(1, "GITHUB_CLIENT_SECRET must not be empty")
+    .optional(),
 
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
@@ -30,6 +55,20 @@ export const envSchema = z.object({
     .min(1, "FRONTEND_URL is required")
     .optional(),
 }).superRefine((data, ctx) => {
+  if (data.ADAPTER === 'mongoose' && !data.MONGODB_URL) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['MONGODB_URL'],
+      message: 'MONGODB_URL is required when ADAPTER=mongoose',
+    });
+  }
+  if (data.ADAPTER === 'prisma' && !data.DATABASE_URL) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['DATABASE_URL'],
+      message: 'DATABASE_URL is required when ADAPTER=prisma',
+    });
+  }
   if (data.NODE_ENV === 'production' && !data.FRONTEND_URL) {
     ctx.addIssue({
       code: 'custom',

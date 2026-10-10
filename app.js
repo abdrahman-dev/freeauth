@@ -35,13 +35,20 @@ app.use((req, res) => res.status(404).json({ success: false, message: 'Not found
 // Global error handling middleware
 app.use(errorHandler);
 
-// Establish connection to MongoDB database before starting the server
+// Establish database connection before starting the server. Only the selected
+// adapter's store is contacted — the other is untouched. Prisma manages its
+// own connection lazily via the driver adapter (PrismaPg) on first query, so
+// no explicit connect step is needed when ADAPTER=prisma (verified against
+// the generated PrismaClient — $connect is available but optional; the adapter's
+// pg Pool connects on demand).
 const startServer = async () => {
-    try {
-        await connectDB();
-    } catch (error) {
-        console.error('Failed to connect to MongoDB:', error);
-        process.exit(1);
+    if (env.ADAPTER === 'mongoose') {
+        try {
+            await connectDB();
+        } catch (error) {
+            console.error('Failed to connect to MongoDB:', error);
+            process.exit(1);
+        }
     }
 
     // Start the Express server on specified port

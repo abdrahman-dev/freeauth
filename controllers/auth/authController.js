@@ -1,7 +1,8 @@
 import { auth } from '../../config/auth.ts';
-import { setAuthCookies, clearAuthCookies } from '../../utils/cookies.js';
+import { setAuthCookies, clearAuthCookies, setGithubOAuthStateCookie, clearGithubOAuthStateCookie } from '../../utils/cookies.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { logger } from '../../src/internal/logger.js';
+import crypto from 'crypto';
 
 // Returns basic API status to confirm the server is running
 export const getApiStatus = (req, res) => {
@@ -119,6 +120,52 @@ export const changePassword = asyncHandler(async (req, res) => {
     return res.status(200).json({
         success: true,
         message: "Password changed successfully"
+    });
+});
+
+// Authenticates via Google ID token and creates session with access/refresh tokens
+export const googleLogin = asyncHandler(async (req, res) => {
+    const { accessToken, refreshToken, isNewUser } = await auth.loginWithGoogle(req.body.idToken);
+
+    setAuthCookies(res, accessToken, refreshToken);
+
+    return res.status(200).json({
+        success: true,
+        message: "Google login successful",
+        isNewUser
+    });
+});
+
+// Issues a GitHub OAuth `state` value (CSRF protection for the authorization-code
+// flow) and stores it in a short-lived httpOnly cookie. The frontend puts the
+// returned value in the GitHub authorize URL; GitHub echoes it back on the
+// callback, and POST /api/auth/github verifies the echo against this cookie.
+export const githubOAuthState = asyncHandler(async (req, res) => {
+    const state = crypto.randomBytes(32).toString('hex');
+
+    setGithubOAuthStateCookie(res, state);
+
+    return res.status(200).json({
+        success: true,
+        data: { state }
+    });
+});
+
+// Authenticates via GitHub authorization code and creates session with access/refresh tokens
+export const githubLogin = asyncHandler(async (req, res) => {
+    // Single-use binding: consume the stored state before exchanging the code,
+    // so every callback attempt needs a freshly issued state.
+    const expectedState = req.cookies?.github_oauth_state;
+    clearGithubOAuthStateCookie(res);
+
+    const { accessToken, refreshToken, isNewUser } = await auth.loginWithGithub(req.body.code, req.body.state, expectedState);
+
+    setAuthCookies(res, accessToken, refreshToken);
+
+    return res.status(200).json({
+        success: true,
+        message: "GitHub login successful",
+        isNewUser
     });
 });
 
