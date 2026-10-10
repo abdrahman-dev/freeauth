@@ -4,3 +4,4 @@ server.log
 .gitignore
 generated/
 dist/
+coverage/
