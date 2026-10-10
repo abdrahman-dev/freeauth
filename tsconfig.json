@@ -18,6 +18,8 @@
     "model/**/*",
     "controllers/**/*",
     "routes/**/*",
+    "tests/**/*",
+    "vitest.config.ts",
     "app.js"
   ]
 }
