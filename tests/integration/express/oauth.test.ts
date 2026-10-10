@@ -98,6 +98,38 @@ describe('POST /api/auth/github/state + POST /api/auth/github', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it('rejects the callback with 422 when `state` is missing from the body', async () => {
+        mockGithub();
+
+        const res = await request(app).post('/api/auth/github').send({ code: 'valid-code' });
+
+        expect(res.status).toBe(422);
+        expect(res.body.success).toBe(false);
+        expect(res.body.message).toBe('Validation failed');
+        expect(Array.isArray(res.body.errors)).toBe(true);
+        expect(res.body.errors.some((e: { field: string }) => e.field === 'state')).toBe(true);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects a replayed state with 401 — the state cookie is single-use', async () => {
+        mockGithub();
+        const agent = request.agent(app);
+        const issued = await agent.post('/api/auth/github/state').send();
+        const state = issued.body.data.state as string;
+
+        const first = await agent.post('/api/auth/github').send({ code: 'valid-code', state });
+        expect(first.status).toBe(200);
+        const callsAfterFirst = fetchMock.mock.calls.length;
+
+        // Same state a second time: the first callback already cleared the cookie,
+        // so there is nothing left to compare the replayed value against.
+        const replay = await agent.post('/api/auth/github').send({ code: 'valid-code', state });
+
+        expect(replay.status).toBe(401);
+        expect(replay.body).toEqual({ success: false, message: 'Invalid OAuth state. Please try signing in again.' });
+        expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+    });
+
     it('rejects a pre-existing email with 409 (no linking)', async () => {
         mockGithub();
         const data = makeRegisterData({ email: 'octocat@example.com' });
