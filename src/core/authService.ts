@@ -111,8 +111,16 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets;
     const rotateSession = async (oldToken: string) => {
         const storedToken = await adapter.sessions.findValid(oldToken);
 
-        if (!storedToken || storedToken.isRevoked) {
+        if (!storedToken) {
             throw new AppError('Invalid or expired refresh token', 401);
+        }
+
+        if (storedToken.isRevoked) {
+            await adapter.sessions.revokeAllForUser(storedToken.userId);
+
+            logger.warn(`[SECURITY] Refresh token reuse detected for userId: ${storedToken.userId}. All sessions revoked.`);
+
+            throw new AppError('Session invalidated due to suspicious activity, please login again', 401);
         }
 
         const user = await adapter.users.findById(storedToken.userId);

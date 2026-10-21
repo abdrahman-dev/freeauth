@@ -49,11 +49,19 @@ describe('POST /api/auth/refresh + POST /api/auth/logout + GET /api/auth/me', ()
 
         const replay = await request(app).post('/api/auth/refresh').set('Cookie', oldCookie);
         expect(replay.status).toBe(401);
-        expect(replay.body).toEqual({ success: false, message: 'Invalid or expired refresh token' });
+        expect(replay.body).toEqual({
+            success: false,
+            message: 'Session invalidated due to suspicious activity, please login again',
+        });
 
+        // Reuse wipes every session for the user, including the rotated one.
         const freshCookie = refreshCookieOf(rotated);
         const again = await request(app).post('/api/auth/refresh').set('Cookie', freshCookie);
-        expect(again.status).toBe(200);
+        expect(again.status).toBe(401);
+        expect(again.body).toEqual({
+            success: false,
+            message: 'Session invalidated due to suspicious activity, please login again',
+        });
     });
 
     it('rejects refresh with no cookie at 401', async () => {

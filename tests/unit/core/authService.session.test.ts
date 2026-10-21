@@ -52,7 +52,7 @@ describe('refreshSession (rotation)', () => {
         });
     });
 
-    it('rejects a sequentially replayed (already-rotated) token with 401 — without wiping other sessions', async () => {
+    it('rejects a sequentially replayed (already-rotated) token with 401 and wipes ALL sessions', async () => {
         const { reg } = await register();
         // Force distinct token strings: replaying a byte-identical token is
         // indistinguishable from using the fresh one, so the test would be
@@ -61,15 +61,19 @@ describe('refreshSession (rotation)', () => {
         const rotated = await auth.refreshSession(reg.refreshToken);
         expect(rotated.refreshToken).not.toBe(reg.refreshToken);
 
-        // Second use of the OLD token: findValid still returns it (isRevoked),
-        // so core rejects BEFORE the atomic revoke — no reuse nuke fires.
+        // Second use of the OLD token: findValid returns it with isRevoked=true,
+        // which is treated as reuse — every session for the user is revoked.
         await expect(auth.refreshSession(reg.refreshToken)).rejects.toMatchObject({
-            message: 'Invalid or expired refresh token',
+            message: 'Session invalidated due to suspicious activity, please login again',
             statusCode: 401,
         });
+        expect(store.sessions.every((s) => s.isRevoked)).toBe(true);
 
-        // The rotated session survives: no revoke-all happened.
-        await expect(auth.refreshSession(rotated.refreshToken)).resolves.toMatchObject({});
+        // The rotated session was wiped too and cannot be used.
+        await expect(auth.refreshSession(rotated.refreshToken)).rejects.toMatchObject({
+            message: 'Session invalidated due to suspicious activity, please login again',
+            statusCode: 401,
+        });
     });
 
     it('treats a lost revoke race as reuse: wipes ALL sessions with 401', async () => {
