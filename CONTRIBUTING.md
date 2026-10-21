@@ -45,13 +45,17 @@ test: cover OAuth state mismatch
 - Database-specific code belongs in `src/adapters/` only.
 - Shared security-sensitive helpers live in `src/internal/` and must not be duplicated in the app or adapters.
 
-## Locked product decisions
+## Product decisions
+
+### Locked
 
 Decisions recorded in `doc/freeauth-architecture.md` are not changed in a pull request without opening an issue to discuss the change first.
 
 For example, OAuth sign-in never auto-links accounts: if Google or GitHub returns an email that already exists, the request fails with `409` and the accounts are not merged (`doc/freeauth-architecture.md` section 8.2, `src/core/authService.ts`).
 
-For example, refresh token reuse is treated as theft: presenting an already-revoked refresh token returns `401` and revokes all of that user's sessions, including the one created by the legitimate refresh (`doc/freeauth-architecture.md` section 11).
+### Open for discussion
+
+Strict mode is the current behavior for refresh token reuse: presenting an already-revoked refresh token returns `401` and revokes all of that user's sessions (`doc/freeauth-architecture.md` section 11). Changing it should start with an issue so the trade-offs can be discussed.
 
 ## Security issues
 
