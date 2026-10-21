@@ -381,7 +381,7 @@ Note: response does **not** contain tokens or OTP; both JWTs are Set-Cookie only
 
 **Inputs:** `Cookie: refreshToken=<token>` (required in practice).
 
-**Flow:** `refreshTokenController` → `auth.refreshSession(cookie)` → `rotateSession`: `sessions.findValid(token)` (must exist **and** `expiresAt > now`; note revoked tokens still "found" — revocation is checked next), 401 if missing/revoked; `users.findById` (401 `User not found` if orphaned); **atomic** `sessions.revoke(oldToken)` — if it returns `false` (already revoked) → `revokeAllForUser` + `logger.warn("[SECURITY] Refresh token reuse detected...")` + 401 `Session invalidated due to suspicious activity, please login again`; else issue new pair + `sessions.create` → `setAuthCookies`.
+**Flow:** `refreshTokenController` → `auth.refreshSession(cookie)` → `rotateSession`: `sessions.findValid(token)` (must exist **and** `expiresAt > now`; revoked tokens are still returned so revocation can be checked), 401 `Invalid or expired refresh token` if missing/expired; if the row is already revoked → **strict mode**: `revokeAllForUser` + `logger.warn("[SECURITY] Refresh token reuse detected...")` + 401 `Session invalidated due to suspicious activity, please login again`; otherwise `users.findById` (401 `User not found` if orphaned); **atomic** `sessions.revoke(oldToken)` — if it returns `false` (lost concurrent-revoke race, also strict mode) → the same `revokeAllForUser` + warning + 401; else issue new pair + `sessions.create` → `setAuthCookies`.
 
 **Success — `200`:**
 
@@ -683,21 +683,21 @@ Common behavior afterwards: both endpoints set the standard `accessToken`/`refre
 
 ```js
 generateAccessToken(user, secret)  // jwt.sign({ userId: user.id }, secret, { expiresIn: '15m' })
-generateRefreshToken(user, secret) // jwt.sign({ userId: user.id }, secret, { expiresIn: 604800 }) // 7d in seconds
+generateRefreshToken(user, secret) // jwt.sign({ userId: user.id, jti: crypto.randomUUID() }, secret, { expiresIn: 604800, algorithm: 'HS256' }) // 7d in seconds
 ```
 
-- Payload is exactly `{ userId: <string>, iat: <s>, exp: <s> }` — no email, name, role, or token id (`jti`). Verified in `authMiddleware.js:15` (`decoded.userId`) and passed as `{ id: userId }` during rotation (`authService.ts:122-123`).
-- Algorithms: `jsonwebtoken` default `HS256` (not overridden anywhere).
+- Payload is `{ userId: <string>, jti: <uuid v4>, iat: <s>, exp: <s> }` — no email, name, or role. `jti` is a fresh `crypto.randomUUID()` per token, minted in `src/internal/authTokens.js`; it is what makes every token distinct (see "Token contents and signing" above for why second-granularity `iat`/`exp` alone are not enough). Verified in `authMiddleware.js:15` (`decoded.userId`) and passed as `{ id: userId }` during rotation (`authService.ts:122-123`).
+- Algorithms: **HS256, pinned explicitly** on both sides — `{ algorithm: 'HS256' }` on every `jwt.sign` in `src/internal/authTokens.js`, and `{ algorithms: ['HS256'] }` on the single `jwt.verify` in `middleware/authMiddleware.js`. Previously this relied on the `jsonwebtoken` default rather than stating it; pinning removes any chance of the signer and verifier disagreeing, and blocks algorithm-confusion attempts at the verify site.
 - Secrets come from validated env via `config/auth.ts` (`ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET`, must differ, ≥32 chars). Library never reads `process.env` for secrets.
 
 ### Token storage
 
 - **Access token:** stateless; **not** stored server-side. Accepted from `accessToken` cookie first, else `Authorization: Bearer` header. Revocation is not possible except by waiting ≤15 min for expiry.
-- **Refresh token:** stateful; JWT **plus** a DB row (`RefreshToken` / `refreshToken`) holding the literal token string, `userId`, `expiresAt` (+7 d), `isRevoked`. Every refresh/logout/password-change mutates these rows. `findValid` enforces `expiresAt > now` at query time; MongoDB additionally has a TTL index (`expires: '0'`, i.e. expire exactly at `expiresAt`).
+- **Refresh token:** stateful; JWT **plus** a DB row (`RefreshToken` / `refreshToken`) holding the literal token string, `userId`, `expiresAt` (+7 d), `isRevoked`. Every refresh/logout/password-change mutates these rows. `findValid` enforces `expiresAt > now` at query time; MongoDB additionally has a TTL index (`expires: '0'`, i.e. expire exactly at `expiresAt`). The `token` column is **unique in both adapters** (Mongoose `unique: true`; Prisma `@unique`) — the token string is a session's identity, so two rows must never share one. Deployments with MongoDB `autoIndex` disabled must build that index by hand; the full dedupe-then-index procedure and the "already-issued tokens stay valid" guarantee are in the Mongoose `RefreshToken` deployment note below.
 
 ### Refresh, rotation, reuse detection
 
-`rotateSession` (`authService.ts:111-144`): find valid → owner lookup → **atomic** `revoke(oldToken)` → on `false` (already revoked ⇒ reuse/replay) revoke **all** user sessions, `logger.warn('[SECURITY] Refresh token reuse detected...')`, throw 401 `Session invalidated due to suspicious activity, please login again` → else mint fresh pair + create new session. Rotation happens on **every** successful `POST /refresh`, so a refresh token is single-use.
+`rotateSession` (`authService.ts:111-152`): find valid → missing/expired ⇒ 401 `Invalid or expired refresh token`; row exists but `isRevoked` ⇒ **strict mode**: `revokeAllForUser`, `logger.warn('[SECURITY] Refresh token reuse detected...')`, throw 401 `Session invalidated due to suspicious activity, please login again`; otherwise owner lookup → **atomic** `revoke(oldToken)` → on `false` (lost concurrent-revoke race, also strict mode) the same revoke-all + warning + 401 → else mint fresh pair + create new session. Rotation happens on **every** successful `POST /refresh`, so a refresh token is single-use.
 
 ### Cookies
 
@@ -733,7 +733,11 @@ Forgot (always-200, enumeration-resistant) → user reads OTP from server log (d
 
 ### Token expiration
 
-Access 15 min; refresh 7 days (JWT `exp` **and** DB `expiresAt` must both be valid). Expiry responses: access → 401 `Access token expired` (middleware) / `Token expired` (errorHandler fallback); refresh → 401 `Invalid or expired refresh token` (covers both revoked and DB-expired; JWT `exp` of the refresh token itself is **never verified** — `rotateSession` does not `jwt.verify` the refresh JWT, it only looks it up in the DB).
+Access 15 min; refresh 7 days (JWT `exp` **and** DB `expiresAt` must both be valid). Expiry responses: access → 401 `Access token expired` (middleware) / `Token expired` (errorHandler fallback); refresh → 401 `Invalid or expired refresh token` for missing/DB-expired, or 401 `Session invalidated due to suspicious activity, please login again` for reuse (JWT `exp` of the refresh token itself is **never verified** — `rotateSession` does not `jwt.verify` the refresh JWT, it only looks it up in the DB).
+
+### Token contents and signing
+
+Both token types are signed **HS256**, pinned explicitly on the signing side (`src/internal/authTokens.js`) and on the only verification site (`middleware/authMiddleware.js`), so neither the signer nor the verifier can be steered onto a different algorithm. The payload is `{ userId, jti }`: the `jti` is a fresh `crypto.randomUUID()` per token. Without it the payload would be only `{ userId, iat, exp }`, whose `iat`/`exp` are second-granularity — two tokens minted for the same user in the same second would be byte-identical, which breaks session identity, single-session revoke, and reuse detection (and collides with the adapters' unique token key; see the Mongoose `RefreshToken` model below for the matching index and its deployment note). `tests/unit/authTokens.test.ts` covers uniqueness-within-a-second and HS256 acceptance.
 
 ### Token rotation
 
@@ -741,7 +745,7 @@ Every successful refresh revokes the presented token and mints a new pair (see a
 
 ### Authentication middleware
 
-`middleware/authMiddleware.js` (synchronous, self-contained): cookie-first, header-fallback; `jwt.verify` against `ACCESS_TOKEN_SECRET` only; sets `req.user = { userId }` (string). Used on exactly two routes: `GET /me`, `POST /change-password`. All other routes needing continuity use the refresh cookie directly in their controller.
+`middleware/authMiddleware.js` (synchronous, self-contained): cookie-first, header-fallback; `jwt.verify` against `ACCESS_TOKEN_SECRET` only, with `{ algorithms: ['HS256'] }` pinned; sets `req.user = { userId }` (string). Used on exactly two routes: `GET /me`, `POST /change-password`. All other routes needing continuity use the refresh cookie directly in their controller.
 
 ### Authorization middleware / RBAC
 
@@ -803,7 +807,7 @@ No `timestamps`, no other indexes beyond the `unique` on `email`, no validators 
 RefreshToken
 ├── _id: ObjectId (implicit)
 ├── userId: ObjectId, ref 'user', required
-├── token: String (full refresh JWT), required           ← not unique
+├── token: String (full refresh JWT), required, unique       ← unique, matches Prisma's @unique
 ├── expiresAt: Date, required, index { expires: '0' }    ← TTL: Mongo deletes at expiresAt
 ├── isRevoked: Boolean, default false
 ├── createdAt: Date (timestamps:true)
@@ -811,6 +815,32 @@ RefreshToken
 ```
 
 TTL semantics: `index: { expires: '0' }` means the MongoDB TTL monitor removes the document when `expiresAt` passes (with the usual ~60 s monitor granularity). Revoked-but-unexpired rows persist until their own `expiresAt`.
+
+**Deployment note — building the `token` unique index on an existing MongoDB deployment.** The `token` field is `unique` so that Mongoose enforces the same constraint Prisma already had (`token String @unique`); the two adapters must agree on this, since the token string is a session's identity. On a **fresh** database Mongoose builds the index automatically at startup. On an **existing** deployment where `autoIndex` is disabled (common in production, where index builds are managed deliberately), the index will **not** exist and duplicate-token rows are still accepted. Build it manually, in this order:
+
+1. **Report duplicates.** Aggregate by `token` and surface any group holding more than one row. The collection name is `refreshtokens` (derived from the Mongoose model `RefreshToken`, not hardcoded by hand):
+
+   ```js
+   db.refreshtokens.aggregate([
+     { $group: { _id: '$token', count: { $sum: 1 }, ids: { $push: '$_id' } } },
+     { $match: { count: { $gt: 1 } } }
+   ])
+   ```
+
+2. **Deduplicate.** For each group returned above, delete all but one row (keep the newest by `updatedAt`/`createdAt`) so no legitimate session is lost:
+
+   ```js
+   // per duplicated token, keeping the most recent row
+   db.refreshtokens.deleteMany({ _id: { $in: /* all but the newest _id */ } });
+   ```
+
+3. **Only then create the index.** `createIndex` fails outright while duplicates exist, so step 2 must complete first:
+
+   ```js
+   db.refreshtokens.createIndex({ token: 1 }, { unique: true });
+   ```
+
+**Already-issued tokens stay valid; no forced re-login.** Adding a random `jti` and pinning HS256 does not invalidate tokens that were minted before the deploy — a token signed with HS256 continues to verify under the pinned algorithm. The new uniqueness guarantee applies only to tokens minted after the deploy, which is why the dedupe step above only concerns rows that may already collide.
 
 #### Prisma reference — `User` + `RefreshToken` (`prisma/schema.prisma`)
 
@@ -1178,7 +1208,7 @@ Client (Cookie: accessToken | Authorization: Bearer …)
   ↓ 200 { success:true, data:{…} }
 ```
 
-### Refresh rotation (happy path vs reuse attack)
+### Refresh rotation (happy path vs reuse attack under strict mode)
 
 ```text
 Happy path:
@@ -1188,8 +1218,8 @@ POST /api/auth/refresh (Cookie: refreshToken=R1)
 
 Reuse attack (R1 presented again after rotation):
 POST /api/auth/refresh (Cookie: refreshToken=R1)
-  → findValid(R1) [row exists, maybe unexpired, isRevoked=true] → revoke(R1) [false!]
-  → revokeAllForUser(userId) + logger.warn([SECURITY] …) → 401 Session invalidated …, login again
+  → findValid(R1) [row exists, maybe unexpired, isRevoked=true]
+  → strict mode: revokeAllForUser(userId) + logger.warn([SECURITY] …) → 401 Session invalidated …, login again
 ```
 
 ### Forgot → Reset password (revokes all sessions)

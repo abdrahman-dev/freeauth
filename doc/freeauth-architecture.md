@@ -343,6 +343,13 @@ When `loginWithGoogle`/`loginWithGithub` finds a pre-existing account with the s
 - **Why a backend-issued httpOnly cookie, not alternatives.** There is no session store in this stack (no `express-session`, no Redis), so server-side session storage would be new infrastructure for one value. The stateless alternative — HMAC-signing the state so nothing is stored — would put a small crypto protocol inside core for no real gain. The double-submit-cookie pattern needs nothing new: `POST /api/auth/github/state` mints 32 random bytes, sets them as a 10-minute httpOnly `SameSite=strict` cookie, and returns the value for the authorize URL; the callback POSTs back GitHub's echo alongside the code. Strict (not Lax) suffices because the cookie is only read on the same-origin callback POST, never on the cross-site GitHub redirect itself.
 - **Single-use by consumption.** The controller clears the state cookie *before* calling core, so every callback attempt — success or failure — needs a freshly issued state. Missing, non-string, or length-mismatched values reject identically to a wrong value (no oracle, no `timingSafeEqual` length-throw leak).
 
+### 8.6 Token uniqueness and algorithm pinning
+
+- **Every token carries a random `jti`** (`crypto.randomUUID()`, minted in `src/internal/authTokens.js`). Without it the payload would be only `{ userId, iat, exp }`, and since `iat`/`exp` are second-granularity, two tokens minted for the same user in the same second are **byte-identical**. That is not a cosmetic detail: the refresh token string *is* the session's identity and its unique key in both adapters, so identical strings mean rotation revokes-then-recreates the same row, single-session revoke/logout hits an ambiguous row, and reuse detection cannot tell two sessions apart. This is reachable in ordinary use — two rapid logins on different devices — not only in a race an attacker must win. The `jti` makes each token distinct at the source, so the database constraint is never the thing being relied on at runtime.
+- **The uniqueness constraint lives in both adapters, not just one.** Prisma already declared `token String @unique`; the Mongoose schema did not, so the same collision surfaced as a P2002 error on Prisma and as silently-accepted duplicate rows on MongoDB. `src/internal/models/refreshToken.js` now carries `unique: true`, making the two adapters agree about what the contract in §4 (`SessionAdapter`) actually requires.
+- **HS256 is pinned on both sides.** `authTokens.js` passes `{ algorithm: 'HS256' }` to every `jwt.sign`, and `middleware/authMiddleware.js` passes `{ algorithms: ['HS256'] }` to its single `jwt.verify`. Neither side relies on a library default any more. With a symmetric secret this is defence in depth rather than closing a live vulnerability — an HMAC secret is not confusable with a public key — but a pinned verifier is what stops an algorithm-confusion attempt outright, and stating the algorithm in code means signer and verifier cannot silently drift apart. The refresh JWT is never `jwt.verify`d at all: `rotateSession` looks the token up in the database instead, so its own `exp` is never trusted (see §5's `findValid`).
+- **Deployment note (existing MongoDB deployments with `autoIndex` disabled).** The new unique index is created automatically only on a fresh database. On an existing deployment with index auto-creation turned off, it will not exist and duplicate-token rows are still accepted; it must be built by hand. The full procedure lives in `doc/backend.md` under the Mongoose `RefreshToken` model: aggregate the `refreshtokens` collection by `token` to report any group with `count > 1`, delete all but the newest row per duplicated token, and **only then** run `createIndex({ token: 1 }, { unique: true })` — `createIndex` fails outright while duplicates are present. **Already-issued tokens stay valid: no forced re-login.** A token minted before the deploy carries no `jti` but is still signed HS256, so it continues to verify; the uniqueness guarantee simply applies from the first token minted after deploy, which is why the dedupe step concerns only rows that may already collide.
+
 ---
 
 ## 9. HTTP API Reference (reference app)
@@ -453,5 +460,46 @@ Notes:
 - OTP flows have independent per-flow lockouts (`verify` vs `reset`), enforced by
   `incrementOtpAttempts` + `setOtpLock` returning/coordinating the authoritative
   count (§4).
+
+---
+
+## 11. Refresh token reuse detection
+
+### Behavior
+
+This behavior is called **strict mode**. Presenting an already-revoked refresh
+token returns `401` with `Session invalidated due to suspicious activity, please
+login again` and revokes all sessions belonging to that user. This applies to
+every path that can observe a revoked token: a sequential replay after a
+successful rotation and a lost concurrent-revoke race. Both paths return the same
+error, so the response does not reveal which case occurred. A token that is
+missing or DB-expired still returns `Invalid or expired refresh token` without
+revoking anything.
+
+### Why
+
+Refresh tokens rotate on every successful refresh, so a revoked token appearing
+again most likely means it was stolen and replayed. The server cannot tell the
+attacker from the real user, so strict mode ends every session of that user. This
+follows the reuse-detection approach described in the OAuth 2.0 Security Best
+Current Practice (RFC 9700).
+
+### Trade-off
+
+A legitimate user whose token is reused by accident (for example, a client retry
+race or two tabs refreshing at the same moment) is signed out on all devices.
+Strict mode is accepted for now because it is simple and safe.
+
+### Alternative considered for the future
+
+Revoke only the token family (the chain of tokens issued from the same login)
+instead of all sessions, plus a short grace window for retry races. This needs
+adapter and contract changes and is not planned for now.
+
+### Status
+
+OPEN FOR DISCUSSION. Strict mode is the current deliberate choice, not a closed
+one. Anyone on the team who wants to change it should open an issue first so the
+trade-offs can be discussed.
 
 ---
