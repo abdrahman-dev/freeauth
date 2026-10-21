@@ -6,7 +6,7 @@ Drop-in authentication for Node backends — OTP email verification, JWT access/
 
 ## Requirements
 
-- Node.js 22. CI uses Node 22, and the reference app relies on native TypeScript type-stripping for its `.ts` imports. There is no `engines` field, so this is not enforced by npm.
+- Node.js 22 or newer is required. `package.json` declares this in `engines`, and `nvm use` picks up the version from `.nvmrc`. CI uses Node 22, and the reference app relies on native TypeScript type-stripping for its `.ts` imports.
 - A database matching your `ADAPTER`: MongoDB for `ADAPTER=mongoose`, PostgreSQL for `ADAPTER=prisma`. The automated tests do not need a real database (MongoDB runs in memory; the Prisma tests use pglite).
 
 ## Install
