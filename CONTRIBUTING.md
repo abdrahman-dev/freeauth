@@ -59,7 +59,7 @@ Strict mode is the current behavior for refresh token reuse: presenting an alrea
 
 ## Security issues
 
-Do not open a public issue for a vulnerability. Email `abdrahmanwalied11@gmail.com` instead.
+Do not open a public issue for a vulnerability. See [SECURITY.md](SECURITY.md) for how to report it privately.
 
 ## Working with coding agents
 

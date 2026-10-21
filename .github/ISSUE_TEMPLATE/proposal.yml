@@ -1,0 +1,24 @@
+name: Proposal / discussion
+description: Suggest a feature or discuss an existing design decision
+title: "Proposal / discussion"
+body:
+  - type: markdown
+    attributes:
+      value: Some behaviors in `doc/freeauth-architecture.md` are open for discussion. This is the place to raise them.
+  - type: textarea
+    id: change
+    attributes:
+      label: What you want to change or add
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

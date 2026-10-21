@@ -12,6 +12,9 @@
     "url": "https://github.com/abdrahman-dev/freeauth/issues"
   },
   "homepage": "https://github.com/abdrahman-dev/freeauth",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "main": "./dist/core/index.js",
   "module": "./dist/core/index.js",
