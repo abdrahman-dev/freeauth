@@ -51,6 +51,8 @@ Decisions recorded in `doc/freeauth-architecture.md` are not changed in a pull r
 
 For example, OAuth sign-in never auto-links accounts: if Google or GitHub returns an email that already exists, the request fails with `409` and the accounts are not merged (`doc/freeauth-architecture.md` section 8.2, `src/core/authService.ts`).
 
+For example, refresh token reuse is treated as theft: presenting an already-revoked refresh token returns `401` and revokes all of that user's sessions, including the one created by the legitimate refresh (`doc/freeauth-architecture.md` section 11).
+
 ## Security issues
 
 Do not open a public issue for a vulnerability. Email `abdrahmanwalied11@gmail.com` instead.
