@@ -27,9 +27,13 @@ There is no type-check script, so call `tsc` directly. CI (`.github/workflows/te
 
 ## Workflow
 
-- Work on a branch, never directly on `main`.
-- Use `feat/...`, `fix/...`, `docs/...`, or `chore/...` branch names.
-- Open a pull request against `main`.
+- Start every piece of work from an issue.
+- Work on a branch, never directly on `main`. Use `type/short-description` branch names, such as `feat/...`, `fix/...`, `docs/...`, `chore/...`, or `test/...`.
+- Open a small, focused pull request against `main` and link the issue with `Closes #N`.
+- Use squash merge only.
+- A pull request that changes behavior must update the docs in the same pull request.
+- No direct pushes to `main`.
+- If you use an AI coding agent, follow [`Agents/AGENTS.md`](Agents/AGENTS.md) and do not expand beyond the issue.
 
 Use conventional commit messages with a short imperative subject:
 
