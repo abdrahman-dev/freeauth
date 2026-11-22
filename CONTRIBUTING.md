@@ -4,6 +4,16 @@
 
 Follow [Requirements](README.md#requirements) and [Running the reference app locally](README.md#running-the-reference-app-locally) in the README. In short: Node 22, `npm install`, `npm run build`, and a `.env` copied from `.env.example` for the adapter you are using.
 
+### Optional: Docker dev environment
+
+If you already have Postgres and MongoDB locally, use them and skip Docker. Otherwise start only the database containers:
+
+```sh
+docker compose up -d postgres mongo
+```
+
+Then set `MONGODB_URL=mongodb://127.0.0.1:27017/starkeep_dev` for `ADAPTER=mongoose`, or `DATABASE_URL=postgresql://starkeep:starkeep@localhost:5432/starkeep_dev` for `ADAPTER=prisma`. The `app` service is optional.
+
 ## Before opening a pull request
 
 Run both of these from the repository root:
