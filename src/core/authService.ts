@@ -1,5 +1,5 @@
 // Core auth service, rebuilt against the AuthAdapter contract.
-// Source of truth for all shapes and signatures used here: doc/freeauth-architecture.md
+// Source of truth for all shapes and signatures used here: doc/starkeep-architecture.md
 // This is a translation of services/authService.js — the business logic (password
 // hashing, JWT signing, OTP generation/verification, lockout rules, session
 // rotation/reuse detection) is unchanged; only the data source changed, from Mongoose
@@ -383,7 +383,7 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets;
         const githubHeaders = {
             Authorization: `Bearer ${githubAccessToken}`,
             Accept: 'application/vnd.github+json',
-            'User-Agent': 'freeauth',
+            'User-Agent': 'starkeep',
         };
 
         let profile: any;

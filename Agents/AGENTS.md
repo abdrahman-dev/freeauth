@@ -24,7 +24,7 @@ Only build a real test suite (a testing framework, organized test files, CI wiri
 
 ## 4. Read the project's own docs first
 
-Before writing any code, read whatever architecture/reference docs already exist in the repo (e.g. `doc/freeauth-architecture.md`, `doc/backend.md`, `doc/ui-guide.md` — check what's actually there, names may vary). These documents are the source of truth for conventions, contracts, and prior decisions. If something you're about to do conflicts with what's written there, stop and flag the conflict rather than picking one side yourself.
+Before writing any code, read whatever architecture/reference docs already exist in the repo (e.g. `doc/starkeep-architecture.md`, `doc/backend.md`, `doc/ui-guide.md` — check what's actually there, names may vary). These documents are the source of truth for conventions, contracts, and prior decisions. If something you're about to do conflicts with what's written there, stop and flag the conflict rather than picking one side yourself.
 
 If you make a decision or change something that these docs describe, update the docs in the same task — don't leave them stale for someone else to notice later.
 

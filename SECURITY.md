@@ -20,4 +20,4 @@ Reports are handled privately until a fix is available.
 
 ## Supported versions
 
-freeauth is not published to npm yet. Only the latest commit on `main` is supported.
+Starkeep is not published to npm yet. Only the latest commit on `main` is supported.

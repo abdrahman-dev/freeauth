@@ -1,4 +1,4 @@
-// Source of truth for these types: doc/freeauth-architecture.md
+// Source of truth for these types: doc/starkeep-architecture.md
 // Every interface and method signature below is defined there. Do not modify this
 // file without updating that document first.
 

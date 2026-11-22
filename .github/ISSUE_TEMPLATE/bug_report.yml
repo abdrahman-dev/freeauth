@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a problem with freeauth
+description: Report a problem with Starkeep
 title: "[Bug]: "
 body:
   - type: markdown
