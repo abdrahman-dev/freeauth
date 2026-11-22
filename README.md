@@ -125,6 +125,16 @@ The Express app in the repository root is a reference consumer of the library. I
 
    The API is mounted at `/api/auth` and listens on `PORT`.
 
+### Optional: Docker dev environment
+
+If you already have Postgres and MongoDB locally, use them and skip Docker. Otherwise start only the database containers:
+
+```sh
+docker compose up -d postgres mongo
+```
+
+Then set `MONGODB_URL=mongodb://127.0.0.1:27017/starkeep_dev` for `ADAPTER=mongoose`, or `DATABASE_URL=postgresql://starkeep:starkeep@localhost:5432/starkeep_dev` for `ADAPTER=prisma`. The `app` service is optional.
+
 ## Tests
 
 ```sh

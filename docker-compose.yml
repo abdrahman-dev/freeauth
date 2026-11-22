@@ -1,0 +1,56 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3000}
+      ADAPTER: ${ADAPTER:-mongoose}
+      MONGODB_URL: mongodb://mongo:27017/starkeep_dev
+      DATABASE_URL: postgresql://starkeep:starkeep@postgres:5432/starkeep_dev
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-dev-access-secret-change-me-0123456789abcdef}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-dev-refresh-secret-change-me-fedcba9876543210}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    # Only needed when ADAPTER=prisma; harmless for the mongoose path.
+    command: >
+      sh -c 'if [ "$$ADAPTER" = "prisma" ]; then npx prisma migrate deploy; fi && npm start'
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_DATABASE: starkeep_dev
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: starkeep
+      POSTGRES_PASSWORD: starkeep
+      POSTGRES_DB: starkeep_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U starkeep -d starkeep_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  mongo_data:
+  postgres_data:

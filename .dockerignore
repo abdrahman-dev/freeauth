@@ -1,0 +1,17 @@
+node_modules
+dist
+generated
+coverage
+.git
+.github
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+tests
