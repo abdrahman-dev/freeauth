@@ -1,4 +1,4 @@
-// Public entry point for the 'freeauth' subpath export.
+// Public entry point for the 'starkeep' subpath export.
 export { createAuth } from './authService.js';
 export type { AuthSecrets } from './authService.js';
 export type {

@@ -1,8 +1,8 @@
-# freeauth
+# Starkeep
 
-Drop-in authentication for Node backends — OTP email verification, JWT access/refresh sessions with rotation and reuse detection, per-flow lockouts. You bring the database; freeauth brings the opinions.
+Drop-in authentication for Node backends — OTP email verification, JWT access/refresh sessions with rotation and reuse detection, per-flow lockouts. You bring the database; Starkeep brings the opinions.
 
-> **Status:** freeauth is not published to npm yet, so `npm install freeauth` does not work yet. Until it is published, use this repository directly (see [Running the reference app locally](#running-the-reference-app-locally)).
+> **Status:** Starkeep is not published to npm yet, so `npm install starkeep` does not work yet. Until it is published, use this repository directly (see [Running the reference app locally](#running-the-reference-app-locally)).
 
 ## Requirements
 
@@ -12,22 +12,22 @@ Drop-in authentication for Node backends — OTP email verification, JWT access/
 ## Install
 
 ```sh
-npm install freeauth
+npm install starkeep
 ```
 
 You'll also need whichever database driver your adapter uses (each is an optional peer — install only the one you need):
 
 ```sh
-npm install mongoose        # for freeauth/mongoose
-npm install @prisma/client  # for freeauth/prisma
+npm install mongoose        # for starkeep/mongoose
+npm install @prisma/client  # for starkeep/prisma
 ```
 
 ## Quick start
 
 ```ts
 import mongoose from 'mongoose';
-import { createAuth } from 'freeauth';
-import { mongooseAdapter } from 'freeauth/mongoose';
+import { createAuth } from 'starkeep';
+import { mongooseAdapter } from 'starkeep/mongoose';
 
 await mongoose.connect(process.env.MONGODB_URL);
 
@@ -52,8 +52,8 @@ Everything else follows the same shape: `loginUser`, `refreshSession`, `forgotPa
 
 ## Available adapters
 
-- `freeauth/mongoose` — MongoDB via Mongoose. Ships with the user/session schemas it needs.
-- `freeauth/prisma` — your own Prisma schema and client. Pass your generated client in: `prismaAdapter(prisma)`.
+- `starkeep/mongoose` — MongoDB via Mongoose. Ships with the user/session schemas it needs.
+- `starkeep/prisma` — your own Prisma schema and client. Pass your generated client in: `prismaAdapter(prisma)`.
 
 That's all there is today. If you've written one for something else, contributions are genuinely welcome — the contract it has to satisfy lives in `src/core/types.ts` and is deliberately small.
 
@@ -73,13 +73,13 @@ const auth = createAuth({
 
 ## Email delivery
 
-Plainly: **freeauth does not send email.** There is no mailer inside, no SMTP settings, no provider SDK — that is a feature, not a gap.
+Plainly: **Starkeep does not send email.** There is no mailer inside, no SMTP settings, no provider SDK — that is a feature, not a gap.
 
 `registerUser`, `forgotPassword`, and `resendOTP` return the raw `otp` value to your code, and delivering it is your application's job: nodemailer, Resend, SendGrid, carrier pigeon — whatever you already use. The core hashes the OTP before storing it and enforces expiry, attempt counting, and lockouts; the last mile to the inbox is yours.
 
 ## Running the reference app locally
 
-The Express app in the repository root is a reference consumer of the library. It imports `freeauth`, `freeauth/mongoose`, and `freeauth/prisma` from `dist/` (through a `file:.` self-install), so the library must be built before the app runs.
+The Express app in the repository root is a reference consumer of the library. It imports `starkeep`, `starkeep/mongoose`, and `starkeep/prisma` from `dist/` (through a `file:.` self-install), so the library must be built before the app runs.
 
 1. Clone the repository and install dependencies:
 
@@ -148,9 +148,9 @@ The Prisma adapter integration tests run against pglite, so they do not need a r
 
 ## Architecture
 
-freeauth separates authentication logic from data access. The core (`src/core/`) owns hashing, OTP rules, token issuance, session rotation, and lockouts. It never imports a database driver, ORM, or model; it only calls the `AuthAdapter` interface defined in `src/core/types.ts`.
+Starkeep separates authentication logic from data access. The core (`src/core/`) owns hashing, OTP rules, token issuance, session rotation, and lockouts. It never imports a database driver, ORM, or model; it only calls the `AuthAdapter` interface defined in `src/core/types.ts`.
 
-Adapters (`src/adapters/`) translate those calls into a specific database: `freeauth/mongoose` for MongoDB and `freeauth/prisma` for PostgreSQL. The reference app selects one with the `ADAPTER` environment variable. See [doc/freeauth-architecture.md](doc/freeauth-architecture.md) for the contracts and design decisions, and [doc/backend.md](doc/backend.md) for the reference app's API and behavior.
+Adapters (`src/adapters/`) translate those calls into a specific database: `starkeep/mongoose` for MongoDB and `starkeep/prisma` for PostgreSQL. The reference app selects one with the `ADAPTER` environment variable. See [doc/starkeep-architecture.md](doc/starkeep-architecture.md) for the contracts and design decisions, and [doc/backend.md](doc/backend.md) for the reference app's API and behavior.
 
 ## Contributing
 

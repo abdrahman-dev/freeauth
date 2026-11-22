@@ -1,6 +1,6 @@
-// FreeAuth reference Prisma schema — a faithful structural port of the Mongoose
+// Starkeep reference Prisma schema — a faithful structural port of the Mongoose
 // models (model/userModel.js, model/refreshToken.js) into Prisma schema syntax.
-// Source of truth for the core contract: doc/freeauth-architecture.md
+// Source of truth for the core contract: doc/starkeep-architecture.md
 //
 // Prisma 7 conventions: the datasource carries no `url` (connection strings now
 // live in prisma.config.ts / the PrismaClient constructor's adapter), and the new

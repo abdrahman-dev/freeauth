@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-// The reference app resolves `freeauth` / `freeauth/mongoose` / `freeauth/prisma`
+// The reference app resolves `starkeep` / `starkeep/mongoose` / `starkeep/prisma`
 // to `dist/` (a `file:.` self-install of the packed output). For tests that
 // indirection would exercise STALE build output, so the aliases below redirect
 // those imports to the live `src/` tree instead. Production builds are
@@ -10,9 +10,9 @@ const root = import.meta.dirname;
 export default defineConfig({
     resolve: {
         alias: [
-            { find: /^freeauth\/mongoose$/, replacement: `${root}/src/adapters/mongoose.ts` },
-            { find: /^freeauth\/prisma$/, replacement: `${root}/src/adapters/prisma.ts` },
-            { find: /^freeauth$/, replacement: `${root}/src/core/index.ts` },
+            { find: /^starkeep\/mongoose$/, replacement: `${root}/src/adapters/mongoose.ts` },
+            { find: /^starkeep\/prisma$/, replacement: `${root}/src/adapters/prisma.ts` },
+            { find: /^starkeep$/, replacement: `${root}/src/core/index.ts` },
         ],
     },
     test: {

@@ -1,8 +1,8 @@
-# FreeAuth — Adapter Architecture & API Reference
+# Starkeep — Adapter Architecture & API Reference
 
 This document is the single source of truth for two things:
 
-1. **Adapter architecture** — how FreeAuth separates auth logic from database logic.
+1. **Adapter architecture** — how Starkeep separates auth logic from database logic.
    Read this before writing or modifying any code under `core/` or `adapters/`.
 2. **The API surface** — every HTTP endpoint the reference app exposes, with request
    bodies, limiter/validation wiring, cookies, and status codes (§9), and the complete
@@ -19,14 +19,14 @@ first, then write the code.
 
 ## 1. The core idea
 
-FreeAuth is not an auth **service** (not OAuth, not a hosted identity provider). It is a
+Starkeep is not an auth **service** (not OAuth, not a hosted identity provider). It is a
 **library** developers drop into their own backend, wired to whatever database/ORM they
 already use.
 
 To make that possible, the codebase is split into two things that must never mix:
 
 - **Core** — all auth *logic*. Hashing, OTP generation/verification, JWT issuing, session
-  rotation rules, lockout rules. This code is **the same for every user of FreeAuth**,
+  rotation rules, lockout rules. This code is **the same for every user of Starkeep**,
   regardless of their database.
 - **Adapter** — all *data access*. Translates the core's requests ("find this user by
   email") into whatever a specific ORM/database needs (Mongoose query, Prisma query,
@@ -232,7 +232,7 @@ Everything else in the function — password verification, token issuing, error
 throwing — stays exactly as-is.
 
 Two adapters implement the interface today, both shipped via subpath exports
-(`freeauth/mongoose`, `freeauth/prisma`) and both equally supported
+(`starkeep/mongoose`, `starkeep/prisma`) and both equally supported
 production-shaped paths. The design stays adapter-agnostic — neither adapter is
 the "primary" the project is redesigned around; selection is explicit via the
 `ADAPTER` env var (see `doc/backend.md` §10 and `config/auth.ts`):
@@ -296,11 +296,11 @@ These apply to any coding agent working on `core/` or `adapters/` in this repo:
 - [x] `core/types.ts` written
 - [x] `authService.js` decoupled from Mongoose, rebuilt against `AuthAdapter`
 - [x] `mongooseAdapter()` implemented (first real adapter, ports existing repositories)
-- [x] Package structure decision (single package with subpath exports vs. monorepo) — decided: single `freeauth` package, library sources self-contained under `src/`, built with `tsc` to `dist/`
+- [x] Package structure decision (single package with subpath exports vs. monorepo) — decided: single `starkeep` package, library sources self-contained under `src/`, built with `tsc` to `dist/`
 - [x] Google OAuth login (additive): `provider`/`providerId` on `UserRecord`, `UserAdapter.createOAuthUser`, `loginWithGoogle(idToken)` in core (verified via `google-auth-library`, `googleClientId` in `createAuth` config). Explicit non-goals for this version: no account linking (pre-existing email is rejected with 409, never merged), no other providers, no Express routes yet.
 - [x] GitHub OAuth login (additive, mirrors Google): `provider` widened with `'github'`, `loginWithGithub(code)` in core (server-side code exchange via plain `fetch`, primary+verified email rule, `githubClientId`/`githubClientSecret` in `createAuth` config, shared `completeOAuthLogin` tail with Google). Same non-goals: no linking, no routes yet.
 - [x] Express layer for OAuth: `POST /api/auth/google` (`{ idToken }`) and `POST /api/auth/github` (`{ code, state }`) plus `POST /api/auth/github/state` (state issuance) in the reference app, sharing the login rate limiter, setting the standard auth cookies, returning `isNewUser`.
-- [x] `prismaAdapter(client)` implemented as the second adapter (same `AuthAdapter` contract; P2025-vs-null divergence documented at `src/adapters/prisma.ts:16-18`), shipped as `freeauth/prisma`.
+- [x] `prismaAdapter(client)` implemented as the second adapter (same `AuthAdapter` contract; P2025-vs-null divergence documented at `src/adapters/prisma.ts:16-18`), shipped as `starkeep/prisma`.
 - [x] Automated test suite added (Vitest + supertest + mongodb-memory-server): 120 tests across core, both adapters, and the Express boundary — `npm test` (inventory + result in `doc/backend.md §16`).
 - [x] Reference-app wiring: `ADAPTER` env var (`mongoose`|`prisma`) selects the adapter symmetrically — `ADAPTER=mongoose` → `mongooseAdapter()` + `connectDB()` (MongoDB), `ADAPTER=prisma` → `prismaAdapter(prisma)` + lazy `PrismaPg` (PostgreSQL). Both paths verified end-to-end: Mongoose via in-memory Mongo (`vitest` + `mongodb-memory-server`) and Atlas manual runs; Prisma via local Postgres (manual Bruno) + unit contract tests.
 
@@ -427,7 +427,7 @@ createAuth(config: {
 ```
 
 - `adapter` is any `AuthAdapter` (§4); Mongoose and Prisma implementations ship as
-  `freeauth/mongoose` and `freeauth/prisma`.
+  `starkeep/mongoose` and `starkeep/prisma`.
 - Secrets are explicit (≥32 chars, must differ) — the library **never reads env**.
 - OAuth config is optional per provider; an unconfigured provider fails loudly at
   call time (`500 … sign-in is not configured`), never at boot.

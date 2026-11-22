@@ -4,7 +4,7 @@ title: "Proposal / discussion"
 body:
   - type: markdown
     attributes:
-      value: Some behaviors in `doc/freeauth-architecture.md` are open for discussion. This is the place to raise them.
+      value: Some behaviors in `doc/starkeep-architecture.md` are open for discussion. This is the place to raise them.
   - type: textarea
     id: change
     attributes:

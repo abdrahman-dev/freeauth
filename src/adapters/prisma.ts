@@ -1,5 +1,5 @@
 // Prisma adapter — the second real implementation of the AuthAdapter contract.
-// Source of truth for every shape and method name: doc/freeauth-architecture.md
+// Source of truth for every shape and method name: doc/starkeep-architecture.md
 // A faithful structural port of adapters/mongoose.ts onto Prisma's query API —
 // same method list, same semantics, no redesign.
 //

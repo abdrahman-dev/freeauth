@@ -8,8 +8,8 @@
 // production constraints (>= 32 chars, access !== refresh).
 
 process.env.ADAPTER ??= 'mongoose';
-process.env.MONGODB_URL ??= 'mongodb://127.0.0.1:27017/freeauth-test-placeholder';
-process.env.DATABASE_URL ??= 'postgresql://127.0.0.1:5432/freeauth-test-placeholder';
+process.env.MONGODB_URL ??= 'mongodb://127.0.0.1:27017/starkeep-test-placeholder';
+process.env.DATABASE_URL ??= 'postgresql://127.0.0.1:5432/starkeep-test-placeholder';
 process.env.PORT ??= '3000';
 process.env.ACCESS_TOKEN_SECRET ??= 'test-access-token-secret-0123456789abcdef';
 process.env.REFRESH_TOKEN_SECRET ??= 'test-refresh-token-secret-fedcba9876543210';

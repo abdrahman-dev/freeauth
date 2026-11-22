@@ -1,4 +1,4 @@
-# Contributing to freeauth
+# Contributing to Starkeep
 
 ## Setup
 
@@ -47,7 +47,7 @@ test: cover OAuth state mismatch
 - Keep the change small and focused on one concern.
 - Describe what changed and why.
 - Add or update tests when logic changes.
-- Update `doc/backend.md` or `doc/freeauth-architecture.md` when behavior changes. Those documents are the project's source of truth.
+- Update `doc/backend.md` or `doc/starkeep-architecture.md` when behavior changes. Those documents are the project's source of truth.
 
 ## Architecture rules
 
@@ -59,13 +59,13 @@ test: cover OAuth state mismatch
 
 ### Locked
 
-Decisions recorded in `doc/freeauth-architecture.md` are not changed in a pull request without opening an issue to discuss the change first.
+Decisions recorded in `doc/starkeep-architecture.md` are not changed in a pull request without opening an issue to discuss the change first.
 
-For example, OAuth sign-in never auto-links accounts: if Google or GitHub returns an email that already exists, the request fails with `409` and the accounts are not merged (`doc/freeauth-architecture.md` section 8.2, `src/core/authService.ts`).
+For example, OAuth sign-in never auto-links accounts: if Google or GitHub returns an email that already exists, the request fails with `409` and the accounts are not merged (`doc/starkeep-architecture.md` section 8.2, `src/core/authService.ts`).
 
 ### Open for discussion
 
-Strict mode is the current behavior for refresh token reuse: presenting an already-revoked refresh token returns `401` and revokes all of that user's sessions (`doc/freeauth-architecture.md` section 11). Changing it should start with an issue so the trade-offs can be discussed.
+Strict mode is the current behavior for refresh token reuse: presenting an already-revoked refresh token returns `401` and revokes all of that user's sessions (`doc/starkeep-architecture.md` section 11). Changing it should start with an issue so the trade-offs can be discussed.
 
 ## Security issues
 

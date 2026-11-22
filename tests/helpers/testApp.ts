@@ -13,8 +13,8 @@ import errorHandler from '../../middleware/errorHandler.js';
 // mongoose to the mongodb-memory-server URI first (see
 // `helpers/mongoMemoryServer.ts`).
 //
-// NOTE on `freeauth` imports: `controllers/auth/authController.js` imports the
-// library via `config/auth.ts`, which resolves `freeauth*` through
+// NOTE on `starkeep` imports: `controllers/auth/authController.js` imports the
+// library via `config/auth.ts`, which resolves `starkeep*` through
 // `vitest.config.ts` aliases to the live `src/` tree — so these tests always
 // exercise current source, never a stale `dist/` build.
 

@@ -1,5 +1,5 @@
 // Mongoose adapter — the first real implementation of the AuthAdapter contract.
-// Source of truth for every shape and method name: doc/freeauth-architecture.md
+// Source of truth for every shape and method name: doc/starkeep-architecture.md
 // This is a relocation, not a rewrite: the queries below mirror the legacy
 // repositories/userRepository.js and repositories/sessionRepository.js (since
 // removed) and their models.
