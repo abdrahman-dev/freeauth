@@ -35,7 +35,7 @@ This repository contains **two things that ship together but serve different rol
 
 | Part | Location | What it is |
 |------|----------|------------|
-| **A. `starkeep` library** | `src/` → built to `dist/` | Drop-in authentication library (OTP email verification, JWT access/refresh sessions with rotation + reuse detection, per-flow lockouts). Database-agnostic via an `AuthAdapter` interface. Not yet published to npm (v0.1.0, pre-publish; the `openauth` name on the registry belongs to an unrelated deprecated package, and `freeauth` was verified unclaimed). |
+| **A. `starkeep` library** | `src/` → built to `dist/` | Drop-in authentication library (OTP email verification, JWT access/refresh sessions with rotation + reuse detection, per-flow lockouts). Database-agnostic via an `AuthAdapter` interface. Not yet published to npm (v0.1.0, pre-publish; the `openauth` name on the registry belongs to an unrelated deprecated package, and `starkeep` is not published yet either). |
 | **B. Express reference app** | `app.js`, `routes/`, `controllers/`, `middleware/`, `config/`, `model/`, `utils/` | Small runnable Express 5 app demonstrating one way to wire the library up. Adapter selection is explicit via `ADAPTER` env var — `mongoose` → MongoDB/Mongoose, `prisma` → PostgreSQL/Prisma (`PrismaPg` driver adapter). **Not** part of the published package (`package.json` `files` = `dist`, `README.md`, `LICENSE` only). |
 
 ### What the backend does
