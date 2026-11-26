@@ -6,12 +6,12 @@
   "author": "Abdrahman Mussa",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/abdrahman-dev/freeauth.git"
+    "url": "git+https://github.com/abdrahman-dev/starkeep.git"
   },
   "bugs": {
-    "url": "https://github.com/abdrahman-dev/freeauth/issues"
+    "url": "https://github.com/abdrahman-dev/starkeep/issues"
   },
-  "homepage": "https://github.com/abdrahman-dev/freeauth",
+  "homepage": "https://github.com/abdrahman-dev/starkeep",
   "engines": {
     "node": ">=22"
   },

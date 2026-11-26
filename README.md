@@ -84,8 +84,8 @@ The Express app in the repository root is a reference consumer of the library. I
 1. Clone the repository and install dependencies:
 
    ```sh
-   git clone https://github.com/abdrahman-dev/freeauth.git
-   cd freeauth
+   git clone https://github.com/abdrahman-dev/starkeep.git
+   cd starkeep
    npm install
    ```
 
@@ -160,7 +160,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, pull request expectations, com
 
 MIT. See `LICENSE`.
 
-Source: `https://github.com/abdrahman-dev/freeauth`.
+Source: `https://github.com/abdrahman-dev/starkeep`.
 
 ---
 
