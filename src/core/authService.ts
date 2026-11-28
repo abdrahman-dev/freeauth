@@ -14,22 +14,74 @@ import { REFRESH_TOKEN_TTL_MS } from '../internal/constants.js';
 import { OAuth2Client } from 'google-auth-library';
 import crypto from 'crypto';
 import type { AuthAdapter, UserRecord } from './types.js';
+import type { RateLimitStore } from './rateLimitStore.js';
 
 const MAX_OTP_ATTEMPTS = 5;
 const OTP_LOCKOUT_MS = 15 * 60 * 1000;
+
+// Rate limiting (optional createAuth.rateLimit) vs OTP/account lockout (below):
+// - Lockout is per-account after failed OTP attempts (verifyLockUntil / resetLockUntil).
+// - Rate limiting is per opaque key (email and/or caller-supplied IP) inside a time
+//   window. It is off unless `rateLimit` is passed; core never reads IP from a
+//   framework request — the caller must pass `ip` on the method args when wanted.
 
 export interface AuthSecrets {
     accessTokenSecret: string;
     refreshTokenSecret: string;
 }
 
-export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets; googleClientId?: string; githubClientId?: string; githubClientSecret?: string }) {
-    const { adapter, secrets, googleClientId, githubClientId, githubClientSecret } = config;
+export interface RateLimitFlowConfig {
+    windowMs: number;
+    limit: number;
+}
+
+export interface AuthRateLimitConfig {
+    store: RateLimitStore;
+    login?: RateLimitFlowConfig;
+    otpVerify?: RateLimitFlowConfig;
+}
+
+export function createAuth(config: {
+    adapter: AuthAdapter;
+    secrets: AuthSecrets;
+    googleClientId?: string;
+    githubClientId?: string;
+    githubClientSecret?: string;
+    rateLimit?: AuthRateLimitConfig;
+}) {
+    const { adapter, secrets, googleClientId, githubClientId, githubClientSecret, rateLimit } = config;
 
     // Verifies Google ID tokens for loginWithGoogle. Constructed once; the client
     // ID doubles as the expected audience so tokens minted for another OAuth app
     // are rejected. Null when the consumer did not configure Google sign-in.
     const googleClient = googleClientId ? new OAuth2Client(googleClientId) : null;
+
+    // Optional per-flow rate limit. No-op when rateLimit / the flow config is absent
+    // so existing callers keep identical behavior. Hits email key always; hits IP
+    // key only when the caller passed `ip` (core never invents one).
+    const enforceRateLimit = async (
+        flow: 'login' | 'otpVerify',
+        email: string,
+        ip?: string,
+    ) => {
+        if (!rateLimit) return;
+        const flowConfig = flow === 'login' ? rateLimit.login : rateLimit.otpVerify;
+        if (!flowConfig) return;
+
+        // IP first when present so a shared-IP denial does not burn the email budget.
+        const keys: string[] = [];
+        if (ip) {
+            keys.push(`${flow}:ip:${ip}`);
+        }
+        keys.push(`${flow}:email:${email.trim().toLowerCase()}`);
+
+        for (const key of keys) {
+            const result = await rateLimit.store.hit(key, flowConfig.windowMs, flowConfig.limit);
+            if (!result.allowed) {
+                throw new AppError('Too many requests, please try again later', 429);
+            }
+        }
+    };
 
     const checkOtpLock = (user: UserRecord, type: 'verify' | 'reset') => {
         const lockUntil = type === 'verify' ? user.verifyLockUntil : user.resetLockUntil;
@@ -247,8 +299,10 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets;
         return { accessToken, refreshToken, otp };
     };
 
-    const loginUser = async (data: { email: string; password: string }) => {
-        const { email, password } = data;
+    const loginUser = async (data: { email: string; password: string; ip?: string }) => {
+        const { email, password, ip } = data;
+
+        await enforceRateLimit('login', email, ip);
 
         const user = await adapter.users.findByEmail(email);
 
@@ -428,8 +482,10 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets;
         return completeOAuthLogin({ email, name, provider: 'github', providerId });
     };
 
-    const verifyEmail = async (data: { email: string; otp: string }) => {
-        const { email, otp } = data;
+    const verifyEmail = async (data: { email: string; otp: string; ip?: string }) => {
+        const { email, otp, ip } = data;
+
+        await enforceRateLimit('otpVerify', email, ip);
 
         const user = await adapter.users.findByEmail(email);
 
@@ -463,10 +519,18 @@ export function createAuth(config: { adapter: AuthAdapter; secrets: AuthSecrets;
         return { sent: true, otp };
     };
 
-    const resetPassword = async (data: { email: string; otp: string; newPassword?: string; password?: string }) => {
-        const { email, otp } = data;
+    const resetPassword = async (data: {
+        email: string;
+        otp: string;
+        newPassword?: string;
+        password?: string;
+        ip?: string;
+    }) => {
+        const { email, otp, ip } = data;
         // newPassword going forward, password kept as deprecated alias
         const password = data.newPassword ?? data.password;
+
+        await enforceRateLimit('otpVerify', email, ip);
 
         const user = await adapter.users.findByEmail(email);
 

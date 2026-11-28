@@ -419,6 +419,11 @@ createAuth(config: {
   googleClientId?: string;
   githubClientId?: string;
   githubClientSecret?: string;
+  rateLimit?: {
+    store: RateLimitStore; // hit(key, windowMs, limit) → { allowed, remaining, resetAt }
+    login?: { windowMs: number; limit: number };
+    otpVerify?: { windowMs: number; limit: number };
+  };
 }) → {
   registerUser, loginUser, loginWithGoogle, loginWithGithub, verifyEmail,
   refreshSession, forgotPassword, resetPassword, resendOTP, changePassword,
@@ -431,19 +436,25 @@ createAuth(config: {
 - Secrets are explicit (≥32 chars, must differ) — the library **never reads env**.
 - OAuth config is optional per provider; an unconfigured provider fails loudly at
   call time (`500 … sign-in is not configured`), never at boot.
+- `rateLimit` is optional and **off by default**. When set, `login` applies to
+  `loginUser` and `otpVerify` applies to `verifyEmail` / `resetPassword`. Keys are
+  `login|otpVerify:email:<email>` and optionally `…:ip:<ip>` when the caller passes
+  `ip` on the method args (core never reads a framework request). Over limit →
+  `AppError('Too many requests, please try again later', 429)`. Distinct from
+  per-account OTP lockout (`Too many attempts, try again later`).
 
 Methods (all `async` unless noted; core throws `AppError(message, statusCode)`):
 
 | Method | Returns | Errors (AppError status) |
 |--------|---------|--------------------------|
 | `registerUser({ name, email, password })` | `{ accessToken, refreshToken, otp }` | 409 email in use |
-| `loginUser({ email, password })` | `{ accessToken, refreshToken }` | 401 bad credentials; 401 social-only account; 403 not verified |
+| `loginUser({ email, password, ip? })` | `{ accessToken, refreshToken }` | 401 bad credentials; 401 social-only account; 403 not verified; 429 rate limit (if configured) |
 | `loginWithGoogle(idToken)` | `{ accessToken, refreshToken, isNewUser: true }` | 401 no/invalid/expired token; 403 unverified email; 409 existing email (no linking); 500 unconfigured |
 | `loginWithGithub(code, receivedState, expectedState)` | `{ accessToken, refreshToken, isNewUser: true }` (primary+verified email required) | 401 invalid `state` (timing-safe compare, §8.5); 401 bad/expired code; 403 no verified email; 409 existing email; 500 unconfigured |
-| `verifyEmail({ email, otp })` | `{ verified: true }` | 400 invalid/expired OTP; 400 OTP attempts exhausted (→ lockout) |
+| `verifyEmail({ email, otp, ip? })` | `{ verified: true }` | 400 invalid/expired OTP; 400 OTP attempts exhausted (→ lockout); 429 rate limit (if configured) |
 | `refreshSession(oldRefreshToken)` | `{ accessToken, refreshToken }` (atomic rotation; §4 `revoke`) | 401 no/invalid/expired token; reuse ⇒ wipe-all-sessions + 401 |
 | `forgotPassword({ email })` | `{ sent: true, otp }` or `{ sent: false }` (unknown email — enumeration-resistant) | — |
-| `resetPassword({ email, otp, newPassword? / password? })` | `{ reset: true }` (revokes all user sessions) | 400 invalid/expired OTP |
+| `resetPassword({ email, otp, newPassword? / password?, ip? })` | `{ reset: true }` (revokes all user sessions) | 400 invalid/expired OTP; 429 rate limit (if configured) |
 | `resendOTP({ email })` | `{ sent: true, otp }` or `{ sent: false }` | 400 already verified |
 | `changePassword(userId, { currentPassword, newPassword })` | `{ changed: true }` (revokes all user sessions) | 404 user; 401 social-only account / wrong current password |
 | `logoutUser(token)` | `{ loggedOut: true }` (idempotent — falsy token returns immediately) | — |
