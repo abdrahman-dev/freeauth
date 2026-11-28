@@ -134,7 +134,9 @@ Authsystem/
 │   ├── core/
 │   │   ├── authService.ts          # createAuth(): all 10 domain operations (register, login, verify, refresh, ...)
 │   │   ├── types.ts                # AuthAdapter / UserAdapter / SessionAdapter / UserRecord / SessionRecord contracts
-│   │   └── index.ts                # Public entry: createAuth + types (package `.` export → dist/core/index.js)
+│   │   ├── rateLimitStore.ts       # RateLimitStore / RateLimitResult contracts (pluggable hit(key, windowMs, limit))
+│   │   ├── memoryRateLimitStore.ts # createMemoryRateLimitStore(): in-memory store with lazy expired cleanup
+│   │   └── index.ts                # Public entry: createAuth + types + RateLimitStore exports (package `.` → dist/core/index.js)
 │   ├── adapters/
 │   │   ├── mongoose.ts             # AuthAdapter over Mongoose models (used by reference app)
 │   │   └── prisma.ts               # AuthAdapter over consumer-supplied Prisma client (PostgreSQL)
@@ -221,6 +223,28 @@ There is no separate "service" layer in the Express app. `src/core/authService.t
 ### Database access pattern
 
 Adapter pattern, not repository-per-entity files. Core calls `adapter.users.*` (13 methods) and `adapter.sessions.*` (4 methods) defined in `src/core/types.ts`. The runtime adapter is chosen once in `config/auth.ts` — `ADAPTER=mongoose` → `mongooseAdapter()` (Mongoose/MongoDB) or `ADAPTER=prisma` → `prismaAdapter(prisma)` (`PrismaClient` + `PrismaPg`, `DATABASE_URL`) — both equally supported production paths. Both adapters ship in the published package (`starkeep/mongoose`, `starkeep/prisma`).
+
+### Core rate-limit store (`RateLimitStore`)
+
+Part A of the core rate-limiting work (issue #8): a pluggable store contract plus an in-memory implementation. **Not** the same as Express `express-rate-limit` in §9 (HTTP middleware) and **not** the same as per-account OTP lockout in §5 (`verifyLockUntil` / `resetLockUntil` after failed OTP attempts). Rate limiting here is per opaque key (e.g. email or IP string the *caller* builds) inside a time window; core never reads IP/email from a framework request object.
+
+| Piece | Location | Role |
+|-------|----------|------|
+| `RateLimitResult` | `src/core/rateLimitStore.ts` | `{ allowed, remaining, resetAt }` — `resetAt` is epoch ms when the current window ends |
+| `RateLimitStore` | `src/core/rateLimitStore.ts` | `hit(key, windowMs, limit)` → sync or async `RateLimitResult` |
+| `createMemoryRateLimitStore()` | `src/core/memoryRateLimitStore.ts` | Single-process `Map` store; purges expired buckets lazily inside `hit` (no `setInterval` / timers that keep the process alive) |
+
+Public exports: `starkeep` re-exports `RateLimitStore`, `RateLimitResult`, and `createMemoryRateLimitStore` from `src/core/index.ts`.
+
+**Custom store:** implement `RateLimitStore` (Redis, Memcached, DB, …) with the same `hit` signature. On each call: resolve or create the bucket for `key`, enforce `limit` within `windowMs`, return whether the hit is allowed, how many hits remain in the window, and when the window resets. Keep drivers out of `src/core/` — only the store implementation may import Redis/etc. Optional wiring of this store into `createAuth` (login / OTP verify) is a separate follow-up; until then the store is usable as a standalone building block.
+
+```ts
+import { createMemoryRateLimitStore, type RateLimitStore } from 'starkeep';
+
+const store: RateLimitStore = createMemoryRateLimitStore();
+const result = await store.hit('login:ada@example.com', 15 * 60_000, 5);
+// result.allowed / result.remaining / result.resetAt
+```
 
 ### Validation strategy
 
@@ -1392,6 +1416,7 @@ Adapter-separated core, atomic session revocation with reuse wipe, per-flow OTP 
 | Rotation | Refresh flow revoking the presented token and minting a fresh pair on every `POST /refresh`. |
 | Reuse detection | Treating presentation of an already-revoked refresh token as theft: revoke **all** user sessions + 401. |
 | Per-flow lockout | Independent 5-strikes/15-min locks for `verify` vs `reset` OTP flows (`verifyAttempts`/`verifyLockUntil`, `resetAttempts`/`resetLockUntil`). |
+| `RateLimitStore` | Pluggable core contract `hit(key, windowMs, limit)` → `{ allowed, remaining, resetAt }`. Distinct from Express HTTP rate limiters and from per-account OTP lockout. In-memory impl: `createMemoryRateLimitStore()`. |
 | `AppError` | Operational error with `statusCode`, thrown by core and rendered verbatim by `errorHandler`. |
 | TTL index | MongoDB index (`expires: '0'` on `RefreshToken.expiresAt`) auto-deleting expired session rows server-side. |
 | `file:.` install | `package.json`'s `"starkeep": "file:."` — npm links the repo root as its own dependency so `import ... from 'starkeep/*'` resolves to local `dist/`. |
@@ -1402,4 +1427,4 @@ Adapter-separated core, atomic session revocation with reuse wipe, per-flow OTP 
 
 ---
 
-*Sources: `app.js`, `config/env.js`, `config/cookie.js`, `config/auth.ts`, `routes/authRoutes.js`, `controllers/auth/authController.js`, `controllers/auth/authValidation.js`, `middleware/{authMiddleware,validate,rateLimiter,errorHandler}.js`, `model/mongodb.js`, `utils/{cookies,asyncHandler}.js`, `src/core/{authService,index,types}.ts`, `src/adapters/{mongoose,prisma}.ts`, `src/internal/{authTokens,passwordService,otpService,constants,errors,logger}.js`, `src/internal/models/{userModel,refreshToken}.js`, `prisma/schema.prisma`, `prisma.config.ts`, `package.json`, `tsconfig{,.build}.json`, `.env` (values redacted), `.gitignore`, `README.md`, `doc/starkeep-architecture.md`. Generated (`generated/`, `dist/`) and `node_modules/` were used only to confirm build targets, not as behavior sources. Prisma is documented as the currently-active adapter for testing/experimentation — the underlying architecture is deliberately adapter-agnostic, not redesigned around Prisma.*
+*Sources: `app.js`, `config/env.js`, `config/cookie.js`, `config/auth.ts`, `routes/authRoutes.js`, `controllers/auth/authController.js`, `controllers/auth/authValidation.js`, `middleware/{authMiddleware,validate,rateLimiter,errorHandler}.js`, `model/mongodb.js`, `utils/{cookies,asyncHandler}.js`, `src/core/{authService,index,types,rateLimitStore,memoryRateLimitStore}.ts`, `src/adapters/{mongoose,prisma}.ts`, `src/internal/{authTokens,passwordService,otpService,constants,errors,logger}.js`, `src/internal/models/{userModel,refreshToken}.js`, `prisma/schema.prisma`, `prisma.config.ts`, `package.json`, `tsconfig{,.build}.json`, `.env` (values redacted), `.gitignore`, `README.md`, `doc/starkeep-architecture.md`. Generated (`generated/`, `dist/`) and `node_modules/` were used only to confirm build targets, not as behavior sources. Prisma is documented as the currently-active adapter for testing/experimentation — the underlying architecture is deliberately adapter-agnostic, not redesigned around Prisma.*
