@@ -236,27 +236,14 @@ Part A of the core rate-limiting work (issue #8): a pluggable store contract plu
 
 Public exports: `starkeep` re-exports `RateLimitStore`, `RateLimitResult`, and `createMemoryRateLimitStore` from `src/core/index.ts`.
 
-**Custom store:** implement `RateLimitStore` (Redis, Memcached, DB, …) with the same `hit` signature. On each call: resolve or create the bucket for `key`, enforce `limit` within `windowMs`, return whether the hit is allowed, how many hits remain in the window, and when the window resets. Keep drivers out of `src/core/` — only the store implementation may import Redis/etc.
-
-**Optional `createAuth({ rateLimit })` wiring:** when omitted, core behavior is unchanged. When provided, `login` and/or `otpVerify` flow configs apply to `loginUser` and to OTP verification (`verifyEmail`, `resetPassword`). Keys are built by core as `login|otpVerify:email:<normalizedEmail>` and, if the caller passes `ip` on the method args, also `…:ip:<ip>` (IP is checked first so a shared-IP denial does not burn the email budget). Over limit → `AppError('Too many requests, please try again later', 429)` for the HTTP layer to map. Core never reads IP from a framework request object.
+**Custom store:** implement `RateLimitStore` (Redis, Memcached, DB, …) with the same `hit` signature. On each call: resolve or create the bucket for `key`, enforce `limit` within `windowMs`, return whether the hit is allowed, how many hits remain in the window, and when the window resets. Keep drivers out of `src/core/` — only the store implementation may import Redis/etc. Optional wiring of this store into `createAuth` (login / OTP verify) is a separate follow-up; until then the store is usable as a standalone building block.
 
 ```ts
-import { createAuth, createMemoryRateLimitStore, type RateLimitStore } from 'starkeep';
+import { createMemoryRateLimitStore, type RateLimitStore } from 'starkeep';
 
 const store: RateLimitStore = createMemoryRateLimitStore();
-const result = await store.hit('login:email:ada@example.com', 15 * 60_000, 5);
+const result = await store.hit('login:ada@example.com', 15 * 60_000, 5);
 // result.allowed / result.remaining / result.resetAt
-
-const auth = createAuth({
-  adapter,
-  secrets,
-  rateLimit: {
-    store,
-    login: { windowMs: 15 * 60_000, limit: 5 },
-    otpVerify: { windowMs: 15 * 60_000, limit: 5 },
-  },
-});
-await auth.loginUser({ email, password, ip: req.ip }); // ip optional
 ```
 
 ### Validation strategy
